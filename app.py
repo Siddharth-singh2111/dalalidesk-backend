@@ -29,6 +29,8 @@ from OCR import parse_register_entry
 from OCR.ocr_queue import OCRQueue
 from apscheduler.schedulers.background import BackgroundScheduler  # Import BackgroundScheduler
 from background_tasks import _perform_backup # Import the backup function
+import pytz
+
 ocr_queue = OCRQueue()
 from utils import table_class_mapper
 load_dotenv()
@@ -48,7 +50,7 @@ BASE = '/api'
 # --- Refactored Backup Logic is now in background_tasks.py ---
 
 # --- Initialize Scheduler ---
-scheduler = BackgroundScheduler(daemon=True)
+scheduler = BackgroundScheduler(daemon=True, timezone=pytz.timezone("Asia/Kolkata"))
 scheduler.add_job(func=_perform_backup, trigger="interval", hours=24)
 scheduler.start()
 
