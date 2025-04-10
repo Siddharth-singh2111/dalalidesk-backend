@@ -29,9 +29,24 @@ def get_partial_payment(supplier_id: int, party_id: int) -> List[Dict]:
     return get_partial_payment_bulk([supplier_id], [party_id])
 
 def get_partial_payment_by_memo_id(memo_id: int) -> Dict:
-    """Retrieves partial payment details for a given memo ID; raises DataError if not exactly one record is found."""
-    query = "select id, memo_id, used from part_payments where memo_id = '{}'".format(memo_id)
+    """Retrieves partial payment details including memo number for a given memo ID;
+    raises DataError if not exactly one record is found.
+    """
+    query = f"""
+        SELECT 
+            pp.id, 
+            pp.memo_id, 
+            pp.used, 
+            me.memo_number
+        FROM 
+            part_payments pp
+        JOIN 
+            memo_entry me ON pp.memo_id = me.id
+        WHERE 
+            pp.memo_id = {memo_id}
+    """
     response = execute_query(query)
-    if len(response['result']) > 1 or len(response['result']) == 0:
-        raise DataError(f'More than one party payment added with memo_id: {memo_id}')
+    num_results = len(response['result'])
+    if num_results != 1:
+        raise DataError(f'Expected exactly one partial payment record for memo_id: {memo_id}, but found {num_results}')
     return response['result'][0]
