@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import os
 import json
 import ast
+import atexit  # Import atexit
 from dotenv import load_dotenv
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
 from flask_jwt_extended import JWTManager, get_jwt
@@ -26,6 +27,8 @@ from Legacy_Data import add_party, add_suppliers
 from Exceptions import DataError
 from OCR import parse_register_entry
 from OCR.ocr_queue import OCRQueue
+from apscheduler.schedulers.background import BackgroundScheduler  # Import BackgroundScheduler
+from background_tasks import _perform_backup # Import the backup function
 ocr_queue = OCRQueue()
 from utils import table_class_mapper
 load_dotenv()
@@ -41,6 +44,16 @@ app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(hours=6)
 jwt = JWTManager(app)
 
 BASE = '/api'
+
+# --- Refactored Backup Logic is now in background_tasks.py ---
+
+# --- Initialize Scheduler ---
+scheduler = BackgroundScheduler(daemon=True)
+scheduler.add_job(func=_perform_backup, trigger="interval", hours=24)
+scheduler.start()
+
+# Shut down the scheduler when exiting the app
+atexit.register(lambda: scheduler.shutdown())
 
 # Custom decorator for checking permissions
 def permission_required(resource, action):
@@ -793,45 +806,13 @@ def get_memo_bills(id: int):
 @jwt_required()
 @permission_required('users', 'create')  # Using admin-level permission for backup
 def backup_data():
-    """Creates a backup of the PostgreSQL database using pg_dump and returns the backup status."""
-    try:
-        current_date = datetime.now()
-        formatted_date = current_date.strftime('%d_%b_%Y')
-        
-        # Retrieve and validate environment variables
-        dbname = os.getenv('DB_NAME')
-        user = os.getenv('DB_USER')
-        password = os.getenv('DB_PASSWORD')
-        gdrive_cred_path = os.getenv('GDRIVE_CRED_PATH')
-        gdrive_folder_id = os.getenv('GDRIVE_FOLDER_ID')
-
-        missing_vars = []
-        if not dbname: missing_vars.append('DB_NAME')
-        if not user: missing_vars.append('DB_USER')
-        if not password: missing_vars.append('DB_PASSWORD')
-        if not gdrive_cred_path: missing_vars.append('GDRIVE_CRED_PATH')
-        if not gdrive_folder_id: missing_vars.append('GDRIVE_FOLDER_ID')
-
-        if missing_vars:
-            return jsonify({
-                'status': 'error',
-                'message': f'Missing required environment variables: {", ".join(missing_vars)}'
-            }), 500
-
-        os.makedirs('./backups', exist_ok=True)
-        backup_file_path = f'./backups/backup_{formatted_date}.sql'
-
-        # Call the backup function
-        result = backup.backup_and_upload_to_gdrive(user, dbname, password, gdrive_cred_path, backup_file_path, gdrive_folder_id)
-        return result
-
-    except Exception as e:
-        # Log the error for debugging
-        print(f"Error during backup process: {str(e)}")
-        return jsonify({
-            'status': 'error',
-            'message': f'An error occurred during the backup process: {str(e)}'
-        }), 500
+    """Triggers the backup process manually via API.
+    Returns the backup status as JSON.
+    """
+    print("Manual backup requested via API.")
+    result = _perform_backup() # Call the imported backup logic
+    status_code = 500 if result.get('status') == 'error' else 200
+    return jsonify(result), status_code
 
 @app.route(BASE + '/parse_register_entry', methods=['POST'])
 @jwt_required()
@@ -1226,4 +1207,8 @@ def get_all_memo_entries_with_names():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Important: Disable reloader when using APScheduler in debug mode
+    # otherwise the scheduler might run twice.
+    # Set use_reloader=False when running with 'flask run'
+    # or pass it to app.run directly if using that.
+    app.run(debug=True, use_reloader=False)
