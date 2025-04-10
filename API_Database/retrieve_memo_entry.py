@@ -8,7 +8,7 @@ from psql import db_connector, execute_query
 from API_Database.utils import parse_date, sql_date
 from API_Database.retrieve_partial_payment import get_partial_payment
 from API_Database.retrieve_partial_payment import get_partial_payment_bulk
-from pypika import Query, Table, Field, functions as fn, Order
+from pypika import Query, Table, Field, functions as fn, Order, Case
 import sys
 import math
 sys.path.append('../')
@@ -308,20 +308,57 @@ def get_all_memo_entries_with_names(page=None, page_size=None, filters=None) -> 
         party_table = Table('party')
         users_table = Table('users')
         users_updated_table = Table('users').as_('users_updated')
-        
-        # Build query with JOINs
+        mb = Table('memo_bills').as_('mb') # Alias for memo_bills
+
+        # Columns from memo_entry table to select and group by
+        memo_entry_cols_select = [
+            memo_entry_table.id, memo_entry_table.memo_number, memo_entry_table.supplier_id,
+            memo_entry_table.party_id, fn.ToChar(memo_entry_table.register_date, 'YYYY-MM-DD').as_('register_date'), 
+            memo_entry_table.amount, memo_entry_table.gr_amount, memo_entry_table.deduction, 
+            memo_entry_table.discount, memo_entry_table.other_deduction, memo_entry_table.rate_difference,
+            memo_entry_table.gr_amount_details, memo_entry_table.discount_details,
+            memo_entry_table.other_deduction_details, memo_entry_table.rate_difference_details,
+            memo_entry_table.notes, memo_entry_table.last_update, memo_entry_table.created_at,
+            memo_entry_table.created_by, memo_entry_table.last_updated, memo_entry_table.last_updated_by
+        ]
+        # Columns needed for group by (without aliases/functions)
+        memo_entry_cols_group = [
+            memo_entry_table.id, memo_entry_table.memo_number, memo_entry_table.supplier_id,
+            memo_entry_table.party_id, memo_entry_table.register_date, memo_entry_table.amount,
+            memo_entry_table.gr_amount, memo_entry_table.deduction, memo_entry_table.discount,
+            memo_entry_table.other_deduction, memo_entry_table.rate_difference,
+            memo_entry_table.gr_amount_details, memo_entry_table.discount_details,
+            memo_entry_table.other_deduction_details, memo_entry_table.rate_difference_details,
+            memo_entry_table.notes, memo_entry_table.last_update, memo_entry_table.created_at,
+            memo_entry_table.created_by, memo_entry_table.last_updated, memo_entry_table.last_updated_by
+        ]
+
+        # Selected name columns + Aliases
+        supplier_name_col = supplier_table.name.as_('supplier_name')
+        party_name_col = party_table.name.as_('party_name')
+        created_by_name_col = users_table.full_name.as_('created_by_name')
+        updated_by_name_col = users_updated_table.full_name.as_('updated_by_name')
+        name_cols_select = [supplier_name_col, party_name_col, created_by_name_col, updated_by_name_col]
+        # Columns needed for group by (without aliases)
+        name_cols_group = [supplier_table.name, party_table.name, users_table.full_name, users_updated_table.full_name]
+
+        # Memo mode column using conditional aggregation
+        memo_mode_col = Case().when(fn.Coalesce(fn.Max(Case().when(mb.type == 'PR', 1).else_(0)), 0) == 1, 'Part').else_('Full').as_('memo_mode')
+
+        # All selected columns
+        select_cols = memo_entry_cols_select + name_cols_select + [memo_mode_col]
+        # Columns for GROUP BY
+        group_by_cols = memo_entry_cols_group + name_cols_group
+
+        # Build query with JOINs including the memo_bills table
         query = Query.from_(memo_entry_table)\
             .left_join(supplier_table).on(memo_entry_table.supplier_id == supplier_table.id)\
             .left_join(party_table).on(memo_entry_table.party_id == party_table.id)\
             .left_join(users_table).on(memo_entry_table.created_by == users_table.id)\
             .left_join(users_updated_table).on(memo_entry_table.last_updated_by == users_updated_table.id)\
-            .select(
-                memo_entry_table.star,
-                supplier_table.name.as_('supplier_name'),
-                party_table.name.as_('party_name'),
-                users_table.full_name.as_('created_by_name'),
-                users_updated_table.full_name.as_('updated_by_name')
-            )
+            .left_join(mb).on(memo_entry_table.id == mb.memo_id)\
+            .select(*select_cols)\
+            .groupby(*group_by_cols)
         
         # Apply filters if provided
         if filters:
@@ -336,7 +373,7 @@ def get_all_memo_entries_with_names(page=None, page_size=None, filters=None) -> 
             if 'memo_number' in filters and filters['memo_number']:
                 query = query.where(memo_entry_table.memo_number == filters['memo_number'])
         
-        # Get total count for pagination
+        # Get total count for pagination (remains simple, based on memo_entry only before join/grouping)
         count_query = Query.from_(memo_entry_table).select(fn.Count('*').as_('total'))
         
         # Apply the same filters to count query
@@ -355,14 +392,15 @@ def get_all_memo_entries_with_names(page=None, page_size=None, filters=None) -> 
         count_result = execute_query(count_query.get_sql())
         total_count = count_result['result'][0]['total'] if count_result['status'] == 'okay' else 0
         
-        # Apply pagination if requested
+        # Add order by to ensure consistent results (applied after grouping)
+        # Ordering by created_at from memo_entry table
+        query = query.orderby(memo_entry_table.created_at, order=Order.desc)
+
+        # Apply pagination if requested (applied after grouping and ordering)
         if page is not None and page_size is not None:
             offset = (page - 1) * page_size
             query = query.limit(page_size).offset(offset)
             
-        # Add order by to ensure consistent results
-        query = query.orderby(memo_entry_table.register_date, order=Order.desc)
-        
         sql = query.get_sql()
         result = execute_query(sql)
         
@@ -371,71 +409,7 @@ def get_all_memo_entries_with_names(page=None, page_size=None, filters=None) -> 
             
         memo_entries = result['result']
         
-        # Enhance each entry with memo bills and payment info
-        for entry in memo_entries:
-            # Get memo bills
-            memo_bills_table = Table('memo_bills')
-            bills_query = Query.from_(memo_bills_table)\
-                .select('*')\
-                .where(memo_bills_table.memo_id == entry['id'])
-            
-            bills_result = execute_query(bills_query.get_sql())
-            entry['memo_bills'] = bills_result['result'] if bills_result['status'] == 'okay' else []
-            
-            # Get payment info
-            memo_payments_table = Table('memo_payments')
-            bank_table = Table('bank')
-            payments_query = Query.from_(memo_payments_table)\
-                .left_join(bank_table).on(memo_payments_table.bank_id == bank_table.id)\
-                .select(
-                    memo_payments_table.bank_id,
-                    bank_table.name.as_('bank_name'),
-                    memo_payments_table.cheque_number,
-                    memo_payments_table.amount
-                )\
-                .where(memo_payments_table.memo_id == entry['id'])
-            
-            payments_result = execute_query(payments_query.get_sql())
-            
-            # Add amount to payment objects
-            if payments_result['status'] == 'okay':
-                entry['payment'] = [
-                    {
-                        'bank_id': p['bank_id'],
-                        'bank_name': p['bank_name'],
-                        'cheque_number': p['cheque_number'],
-                        'amount': p.get('amount', 0)
-                    }
-                    for p in payments_result['result']
-                ]
-            else:
-                entry['payment'] = []
-                
-            # Parse JSON fields
-            import json
-            
-            def parse_json_field(field_value, default=None):
-                if not field_value:
-                    return default or []
-                try:
-                    return json.loads(field_value)
-                except:
-                    return default or []
-            
-            # Add new fields
-            entry['discount'] = entry.get('discount', 0)
-            entry['other_deduction'] = entry.get('other_deduction', 0)
-            entry['rate_difference'] = entry.get('rate_difference', 0)
-            entry['less_details'] = {
-                'gr_amount': parse_json_field(entry.get('gr_amount_details')),
-                'discount': parse_json_field(entry.get('discount_details')),
-                'other_deduction': parse_json_field(entry.get('other_deduction_details')),
-                'rate_difference': parse_json_field(entry.get('rate_difference_details'))
-            }
-            entry['notes'] = parse_json_field(entry.get('notes'))
-            entry['created_by_name'] = entry.get('created_by_name', '')
-            entry['updated_by_name'] = entry.get('updated_by_name', '')
-        
+
         return {
             'status': 'okay', 
             'result': memo_entries,
@@ -447,4 +421,8 @@ def get_all_memo_entries_with_names(page=None, page_size=None, filters=None) -> 
             } if page is not None and page_size is not None else None
         }
     except Exception as e:
+        # Log the exception for debugging
+        print(f"Error in get_all_memo_entries_with_names: {e}") 
+        import traceback
+        traceback.print_exc()
         return {'status': 'error', 'message': str(e)}

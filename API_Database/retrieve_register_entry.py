@@ -410,15 +410,18 @@ def get_all_register_entries_with_names(page=None, page_size=None, filters=None)
         register_entry_table = Table('register_entry')
         supplier_table = Table('supplier')
         party_table = Table('party')
+        users_table = Table('users')
         
         # Build query with JOINs
         query = Query.from_(register_entry_table)\
             .left_join(supplier_table).on(register_entry_table.supplier_id == supplier_table.id)\
             .left_join(party_table).on(register_entry_table.party_id == party_table.id)\
+            .left_join(users_table).on(register_entry_table.created_by == users_table.id)\
             .select(
                 register_entry_table.star,
                 supplier_table.name.as_('supplier_name'),
-                party_table.name.as_('party_name')
+                party_table.name.as_('party_name'),
+                users_table.full_name.as_('created_by_name')
             )
         
         # Apply filters if provided
@@ -459,7 +462,7 @@ def get_all_register_entries_with_names(page=None, page_size=None, filters=None)
             query = query.limit(page_size).offset(offset)
             
         # Add order by to ensure consistent results
-        query = query.orderby(register_entry_table.register_date, order=Order.desc)
+        query = query.orderby(register_entry_table.created_at, order=Order.desc)
         
         sql = query.get_sql()
         result = execute_query(sql)
@@ -469,25 +472,7 @@ def get_all_register_entries_with_names(page=None, page_size=None, filters=None)
             
         register_entries = result['result']
         
-        # Enhance each entry with memo bills info
-        for entry in register_entries:
-            # Get memo bills
-            memo_bills_table = Table('memo_bills')
-            memo_entry_table = Table('memo_entry')
-            bills_query = Query.from_(memo_bills_table)\
-                .left_join(memo_entry_table).on(memo_bills_table.memo_id == memo_entry_table.id)\
-                .select(
-                    memo_bills_table.id,
-                    memo_bills_table.memo_id,
-                    memo_bills_table.type,
-                    memo_bills_table.amount,
-                    memo_entry_table.memo_number,
-                    memo_entry_table.register_date
-                )\
-                .where(memo_bills_table.bill_id == entry['id'])
-            
-            bills_result = execute_query(bills_query.get_sql())
-            entry['memo_bills'] = bills_result['result'] if bills_result['status'] == 'okay' else []
+
         
         return {
             'status': 'okay', 
