@@ -177,3 +177,6 @@ logs
 
 # ignore local_scripts folder
 local_scripts
+
+# ignore backup config files
+*-data-backup-*

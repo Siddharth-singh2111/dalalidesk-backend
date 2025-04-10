@@ -794,14 +794,44 @@ def get_memo_bills(id: int):
 @permission_required('users', 'create')  # Using admin-level permission for backup
 def backup_data():
     """Creates a backup of the PostgreSQL database using pg_dump and returns the backup status."""
-    current_date = datetime.now()
-    formatted_date = current_date.strftime('%d_%b_%Y')
-    dbname = os.getenv('DB_NAME')
-    user = os.getenv('DB_USER')
-    password = os.getenv('DB_PASSWORD')
-    os.makedirs('./backups', exist_ok=True)
-    backup_file_path = f'./backups/backup_{formatted_date}.sql'
-    return backup.backup_postgresql_database(user, dbname, password, backup_file_path)
+    try:
+        current_date = datetime.now()
+        formatted_date = current_date.strftime('%d_%b_%Y')
+        
+        # Retrieve and validate environment variables
+        dbname = os.getenv('DB_NAME')
+        user = os.getenv('DB_USER')
+        password = os.getenv('DB_PASSWORD')
+        gdrive_cred_path = os.getenv('GDRIVE_CRED_PATH')
+        gdrive_folder_id = os.getenv('GDRIVE_FOLDER_ID')
+
+        missing_vars = []
+        if not dbname: missing_vars.append('DB_NAME')
+        if not user: missing_vars.append('DB_USER')
+        if not password: missing_vars.append('DB_PASSWORD')
+        if not gdrive_cred_path: missing_vars.append('GDRIVE_CRED_PATH')
+        if not gdrive_folder_id: missing_vars.append('GDRIVE_FOLDER_ID')
+
+        if missing_vars:
+            return jsonify({
+                'status': 'error',
+                'message': f'Missing required environment variables: {", ".join(missing_vars)}'
+            }), 500
+
+        os.makedirs('./backups', exist_ok=True)
+        backup_file_path = f'./backups/backup_{formatted_date}.sql'
+
+        # Call the backup function
+        result = backup.backup_and_upload_to_gdrive(user, dbname, password, gdrive_cred_path, backup_file_path, gdrive_folder_id)
+        return result
+
+    except Exception as e:
+        # Log the error for debugging
+        print(f"Error during backup process: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': f'An error occurred during the backup process: {str(e)}'
+        }), 500
 
 @app.route(BASE + '/parse_register_entry', methods=['POST'])
 @jwt_required()
