@@ -59,7 +59,10 @@ class RegisterEntry(Entry):
 
     def update(self) -> Dict:
         """Updates the register entry in the database and returns the update status."""
-        return update_register_entry.update_register_entry_data(self)
+        if insert_register_entry.check_new_register(self, edit_mode=True):
+            return update_register_entry.update_register_entry_data(self)
+        else:
+            raise DataError({'status': 'error', 'message': 'Duplicate Bill Number', 'input_errors': {'bill_number': {'status': 'error', 'message': 'Bill number already exists in a seperate entry'}}})
 
     def get_id(self) -> int:
         """Returns the ID of the register entry; computes it if not already set."""

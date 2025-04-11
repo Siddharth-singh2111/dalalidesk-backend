@@ -33,6 +33,7 @@ def get_register_entry_by_id(id: int) -> Dict:
         .left_join(supplier_table).on(register_entry_table.supplier_id == supplier_table.id)\
         .left_join(party_table).on(register_entry_table.party_id == party_table.id)\
         .select(
+            register_entry_table.id,
             register_entry_table.supplier_id,
             register_entry_table.party_id,
             register_entry_table.bill_number,
