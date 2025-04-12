@@ -17,7 +17,7 @@ def search_entities(table_name: str, search_query: str, **kwargs):
     # Define searchable fields based on entity type
     # Only including the five core entities: Supplier, Party, Bank, Register Entry, and Memo Entry
     searchable_fields = {
-        'supplier': ['name', 'address', 'phone_number'],
+        'supplier': ['name', 'address', 'phone_number', 'city'],
         'party': ['name', 'address', 'phone_number'],
         'bank': ['name', 'address', 'phone_number'],
         # Expanded fields for Register Entry

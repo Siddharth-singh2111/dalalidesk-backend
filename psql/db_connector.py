@@ -1,4 +1,5 @@
 import psycopg2
+from psycopg2 import errors
 from psycopg2.extras import RealDictCursor
 import os
 import re
@@ -236,6 +237,19 @@ def execute_query(query: str, dictCursor: bool=True, exec_remote: bool=True, cur
         
         db.close()
         return {'result': result, 'status': 'okay', 'message': 'Query executed successfully!'}
+    except errors.ForeignKeyViolation as e:
+        # Extract details from the error message if possible
+        error_message = str(e)
+        violating_table_match = re.search(r'on table "([^"]+)" violates foreign key constraint', error_message)
+        referenced_table_match = re.search(r'is still referenced from table "([^"]+)"', error_message)
+        
+        violating_table = violating_table_match.group(1) if violating_table_match else "the target table"
+        referenced_table = referenced_table_match.group(1) if referenced_table_match else "another table"
+        
+        user_friendly_message = f"Cannot perform operation on {violating_table} because it is still referenced by {referenced_table}. Please remove related entries in {referenced_table} first."
+        
+        print(f'Foreign Key Violation: {e}')
+        raise DataError({'status': 'error', 'message': user_friendly_message})
     except Exception as e:
         print('Error executing query:', e)
         raise DataError({'status': 'error', 'message': f'Error with Query Execution: {e}'})

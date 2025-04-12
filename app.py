@@ -1123,7 +1123,6 @@ def search():
         
         try:
             results = search_entities.search_entities(table_name, search_query, **search_data)
-            print("for table", table_name, "results are", results)
             return json.dumps(results, cls=CustomEncoder)
         except Exception as e:
             return jsonify({'status': 'error', 'message': str(e)}), 500
