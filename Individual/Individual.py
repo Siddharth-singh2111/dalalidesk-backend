@@ -42,6 +42,8 @@ class Individual:
         self.address = address
         phone_number = kwargs.get('phone_number', None)
         self.phone_number = self._parse_number(phone_number)
+        city = kwargs.get('city', None)
+        self.city = city
         self.table_name = table_name
         self.id = kwargs.get('id', None)
         if self.id is not None:
@@ -75,6 +77,8 @@ class Individual:
         update_fields = [f"name='{self.name}'", f"address='{self.address}'"]
         if self.phone_number:
             update_fields.append(f"phone_number='{self.phone_number}'")
+        if self.city:
+            update_fields.append(f"city='{self.city}'")
             
         # Add audit fields
         if current_user_id is not None:
@@ -205,6 +209,10 @@ class Individual:
         if entity.phone_number is not None:
             columns.append('phone_number')
             values.append(f"'{entity.phone_number}'")
+
+        if entity.city is not None:
+            columns.append('city')
+            values.append(f"'{entity.city}'")
             
         # Add audit fields
         if current_user_id is not None:
