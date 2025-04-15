@@ -2,24 +2,48 @@ from __future__ import annotations
 from typing import List, Dict, Optional
 from psql import execute_query
 from pypika import Query, Table, Field, Order, functions as fn
+from Exceptions import DataError
+import math
 import sys
 sys.path.append('../')
 
 def calculate_commission(amount: float, gst_percentage: float = 4.762) -> float:
     """
     Calculate commission amount based on memo amount.
-    First removes GST from the amount, then calculates 2% of the remaining amount.
+    
+    This function first validates the inputs to ensure that:
+      - Both the memo amount and GST percentage are numbers.
+      - Both values are finite (i.e. not NaN or infinite).
+      - Both values are non-negative.
+    
+    Then, it removes GST from the amount and calculates 2% of the remaining amount.
     
     Args:
-        amount: The memo amount
-        gst_percentage: The GST percentage to remove (default: 4.762%)
+        amount: The memo amount (must be a finite, non-negative number).
+        gst_percentage: The GST percentage to remove (must be a finite, non-negative number; default: 4.762).
         
     Returns:
-        The calculated commission amount
+        The calculated commission amount rounded to 2 decimal places.
+        
+    Raises:
+        DataError: If any of the input validations fail.
     """
+    # Validate that the memo amount is a numeric, finite, and non-negative value.
+    if not isinstance(amount, (int, float)) or not math.isfinite(amount):
+        raise DataError("Invalid amount: must be a finite number.")
+    if amount < 0:
+        raise DataError("Invalid amount: memo amount cannot be negative.")
+    
+    # Validate that gst_percentage is a numeric, finite, and non-negative value.
+    if not isinstance(gst_percentage, (int, float)) or not math.isfinite(gst_percentage):
+        raise DataError("Invalid GST percentage: must be a finite number.")
+    if gst_percentage != 4.762 and gst_percentage != 10.7:
+        raise DataError("Invalid GST percentage: must be 4.762 or 10.7.")
+    
+
     # Remove GST from amount
-    amount_without_gst = amount / (1 + (gst_percentage / 100))
-    # Calculate 2% commission
+    amount_without_gst = amount - (amount * (gst_percentage / 100))
+    # Calculate 2% commission on the amount after GST removal
     commission = amount_without_gst * 0.02
     return round(commission, 2)
 
