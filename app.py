@@ -550,35 +550,20 @@ def search_audit_trail():
             'message': f'Error searching audit logs: {str(e)}'
         }), 500
 
-@app.route(BASE + '/supplier_names_and_ids', methods=['GET'])
-@jwt_required()
-@permission_required('supplier', 'read')
-def get_all_supplier_names():
-    """Retrieves all supplier names and IDs from the database and returns them in JSON format."""
-    
-    # Print the full request
-    print(request.args)
-    data = retrieve_indivijual.get_all_names_ids('supplier')
-    json_data = json.dumps(data)
-    return json_data
 
-@app.route(BASE + '/party_names_and_ids', methods=['GET'])
+@app.route(BASE + '/names_and_ids', methods=['GET'])
 @jwt_required()
-@permission_required('party', 'read')
-def get_all_party_names():
-    """Retrieves all party names and IDs from the database and returns them in JSON format."""
-    data = retrieve_indivijual.get_all_names_ids('party')
-    json_data = json.dumps(data)
-    return json_data
+def get_names_and_ids():
+    """
+    Generic endpoint: ?type=supplier|party|bank
+    """
+    entity = request.args.get('type')
+    if entity not in ('supplier', 'party', 'bank'):
+        return jsonify({'error': 'Invalid type parameter'}), 400
 
-@app.route(BASE + '/bank_names_and_ids', methods=['GET'])
-@jwt_required()
-@permission_required('bank', 'read')
-def get_all_bank_names():
-    """Retrieves all bank names and IDs from the database and returns them in JSON format."""
-    data = retrieve_indivijual.get_all_names_ids('bank')
-    json_data = json.dumps(data)
-    return json_data
+    data = retrieve_indivijual.get_all_names_ids(entity)
+    return jsonify(data)
+
 
 @app.route(BASE + '/credit/<int:supplier_id>/<int:party_id>', methods=['GET'])
 @jwt_required()
@@ -690,15 +675,6 @@ def add_order_form_entry():
     data = request.json
     response = OrderForm.insert(data)
     return jsonify(response)
-
-@app.route(BASE + '/add_legacy')
-@jwt_required()
-@permission_required('supplier', 'create')
-def add_legacy():
-    """Triggers legacy data insertion routines for suppliers and parties."""
-    add_suppliers.add()
-    add_party.add()
-    return {'status': 'okay'}
 
 @app.route(BASE + '/get_all', methods=['POST'])
 @jwt_required()
