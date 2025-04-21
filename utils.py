@@ -20,3 +20,22 @@ def table_class_mapper(table_name: str):
     if table_name not in entity_mapping:
         raise DataError('Table name not found in entity mapping')
     return entity_mapping[table_name]
+
+def all_tables():
+    """Returns a list of all table names in the database."""
+    return [
+        'supplier',
+        'party',
+        'bank',
+        'transport',
+        'register_entry',
+        'memo_entry',
+        'order_form',
+        'item',
+        'item_entry',
+        'firm',
+        'firm_bank'
+    ]   
+
+
+

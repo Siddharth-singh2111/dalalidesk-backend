@@ -24,6 +24,8 @@ def search_entities(table_name: str, search_query: str, **kwargs):
         'register_entry': ['bill_number', 'amount', 'status', 'supplier_name', 'party_name'],
         # Expanded fields for Memo Entry
         'memo_entry': ['memo_number', 'amount', 'supplier_name', 'party_name'],
+        'firm': ['name', 'address', 'phone_number'],
+        'firm_bank': ['name', 'address', 'phone_number'],
     }
     
     fields = searchable_fields.get(table_name, ['name'])

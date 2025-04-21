@@ -558,8 +558,8 @@ def get_names_and_ids():
     Generic endpoint: ?type=supplier|party|bank
     """
     entity = request.args.get('type')
-    if entity not in ('supplier', 'party', 'bank'):
-        return jsonify({'error': 'Invalid type parameter'}), 400
+    if entity not in ('supplier', 'party', 'bank', 'firm', 'firm_bank'):
+        return jsonify({'status': 'error', 'message': 'Invalid type parameter'}), 400
 
     data = retrieve_indivijual.get_all_names_ids(entity)
     return jsonify(data)
