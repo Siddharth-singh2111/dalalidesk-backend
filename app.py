@@ -626,13 +626,8 @@ def add_individual():
 def add_entry():
     """Inserts an entry (register, memo, order form, item, or item entry) into the database using provided JSON data."""
     data = request.json
-    entity_mapping = {'register_entry': RegisterEntry, 'memo_entry': MemoEntry, 'order_form': OrderForm, 'item': Item, 'item_entry': ItemEntry}
-    
-    # Check permission based on entity type
-    entity_type = data.get('entity')
-    if not entity_type or entity_type not in entity_mapping:
-        return jsonify({'status': 'error', 'message': 'Invalid entity type'}), 400
-    
+    entity = data.get('entity')
+    entity_type = table_class_mapper(entity)
     # Verify JWT is present
     verify_jwt_in_request()
     
@@ -640,13 +635,13 @@ def add_entry():
     current_user = get_current_user()
     
     # Check if user has permission
-    if not current_user or not current_user.has_permission(entity_type, 'create'):
+    if not current_user or not current_user.has_permission(entity, 'create'):
         return jsonify({
             'status': 'error',
             'message': 'Permission denied'
         }), 403
     
-    return entity_mapping[entity_type].insert(data)
+    return entity_type.insert(data)
 
 @app.route(BASE + '/add/register_entry', methods=['POST'])
 @jwt_required()
@@ -879,14 +874,6 @@ def update_name_mapping():
         return jsonify({'status': 'okay', 'message': 'Name mapping updated successfully'})
     except Exception as e:
         return (jsonify({'status': 'error', 'message': f'Error updating name mapping: {str(e)}'}), 500)
-
-@app.route(BASE + '/fix_problems')
-@jwt_required()
-@permission_required('register_entry', 'update')
-def fix():
-    """Executes fix routines for register entries and returns a status message."""
-    update_register_entry.fix_problems()
-    return {'status': 'okay'}
 
 @app.route(BASE + '/v2/get_by_id/<string:table_name>/<int:id>')
 @jwt_required()
