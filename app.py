@@ -594,33 +594,6 @@ def create_report():
         return jsonify(report_data)
     return {'status': 'okay'}
 
-@app.route(BASE + '/add/individual', methods=['POST'])
-@jwt_required()
-def add_individual():
-    """Inserts an individual (supplier, party, bank, or transporter) into the database using provided JSON data."""
-    data = request.json
-    entity_mapping = {'supplier': Supplier, 'party': Party, 'bank': Bank, 'transport': Transporter}
-    
-    # Check permission based on entity type
-    entity_type = data.get('entity')
-    if not entity_type or entity_type not in entity_mapping:
-        return jsonify({'status': 'error', 'message': 'Invalid entity type'}), 400
-    
-    # Verify JWT is present
-    verify_jwt_in_request()
-    
-    # Get current user
-    current_user = get_current_user()
-    
-    # Check if user has permission
-    if not current_user or not current_user.has_permission(entity_type, 'create'):
-        return jsonify({
-            'status': 'error',
-            'message': 'Permission denied'
-        }), 403
-    
-    return entity_mapping[entity_type].insert(data)
-
 @app.route(BASE + '/add/entry', methods=['POST'])
 @jwt_required()
 def add_entry():

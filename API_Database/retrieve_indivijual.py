@@ -37,6 +37,28 @@ def get_supplier_name_by_id(supplier_id: int) -> str:
     db.close()
     return data[0][0]
 
+def get_firm_name_by_id(firm_id: int) -> str:
+    """
+    Get firm name by ID
+    """
+    (db, cursor) = db_connector.cursor()
+    query = "select name from firm where id = '{}';".format(firm_id)
+    cursor.execute(query)
+    data = cursor.fetchall()
+    db.close()
+    return data[0][0]
+
+def get_firm_bank_name_by_id(firm_bank_id: int) -> str:
+    """
+    Get firm bank name by ID
+    """
+    (db, cursor) = db_connector.cursor()
+    query = "select name from firm_bank where id = '{}';".format(firm_bank_id)
+    cursor.execute(query)
+    data = cursor.fetchall()
+    db.close()
+    return data[0][0]
+
 def get_individual_id_by_name(name: str, table_name: str) -> int:
     """Retrieves the ID of an individual from the specified table based on the given name; raises DataError if not found."""
     entity_table = Table(table_name)

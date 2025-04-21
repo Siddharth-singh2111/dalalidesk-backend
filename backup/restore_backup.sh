@@ -2,7 +2,7 @@
 
 DB_USER="postgres"
 DB_NAME="hca_v2"
-BACKUP_FILE="/Users/vaibhavholani/Downloads/final_backup.sql"
+BACKUP_FILE="/Users/vaibhavholani/development/business/global_holani_tradelink/backups/backup_17_Apr_2025.sql"
 
 psql -U "$DB_USER" -d postgres -c "DROP DATABASE IF EXISTS $DB_NAME;"
 psql -U "$DB_USER" -d postgres -c "CREATE DATABASE $DB_NAME;"

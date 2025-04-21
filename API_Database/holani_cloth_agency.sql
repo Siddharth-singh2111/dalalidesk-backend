@@ -249,6 +249,39 @@ CREATE TABLE stack(
     last_updated_by BIGINT
 );
 
+-- Add sequences and tables for Firms and Firm Banks
+CREATE SEQUENCE firm_seq;
+
+CREATE TABLE firm (
+    id INT DEFAULT NEXTVAL ('firm_seq') PRIMARY KEY,
+    name VARCHAR(100),
+    address VARCHAR(300),
+    phone_number VARCHAR(20),
+    UNIQUE (name),
+    last_update TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_by BIGINT,
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_updated_by BIGINT
+);
+
+CREATE SEQUENCE firm_bank_seq;
+
+CREATE TABLE firm_bank (
+    id INT DEFAULT NEXTVAL ('firm_bank_seq') PRIMARY KEY,
+    name VARCHAR(100),
+    address VARCHAR(300),
+    phone_number VARCHAR(20),
+    firm_id INT NOT NULL,
+    UNIQUE (name, firm_id),
+    last_update TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_by BIGINT,
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_updated_by BIGINT,
+    FOREIGN KEY (firm_id) REFERENCES firm(id)
+);
+
 -- Audit trail schema
 CREATE SEQUENCE IF NOT EXISTS users_seq;
 CREATE TABLE IF NOT EXISTS users (
@@ -323,6 +356,10 @@ ALTER TABLE last_update ADD FOREIGN KEY (created_by) REFERENCES users(id);
 ALTER TABLE last_update ADD FOREIGN KEY (last_updated_by) REFERENCES users(id);
 ALTER TABLE stack ADD FOREIGN KEY (created_by) REFERENCES users(id);
 ALTER TABLE stack ADD FOREIGN KEY (last_updated_by) REFERENCES users(id);
+ALTER TABLE firm ADD FOREIGN KEY (created_by) REFERENCES users(id);
+ALTER TABLE firm ADD FOREIGN KEY (last_updated_by) REFERENCES users(id);
+ALTER TABLE firm_bank ADD FOREIGN KEY (created_by) REFERENCES users(id);
+ALTER TABLE firm_bank ADD FOREIGN KEY (last_updated_by) REFERENCES users(id);
 ALTER TABLE permissions ADD FOREIGN KEY (created_by) REFERENCES users(id);
 ALTER TABLE permissions ADD FOREIGN KEY (last_updated_by) REFERENCES users(id);
 
@@ -364,6 +401,8 @@ VALUES
 ('admin', 'item', TRUE, TRUE, TRUE, TRUE),
 ('admin', 'item_entry', TRUE, TRUE, TRUE, TRUE),
 ('admin', 'audit_log', FALSE, TRUE, FALSE, FALSE),
+('admin', 'firm', TRUE, TRUE, TRUE, TRUE),
+('admin', 'firm_bank', TRUE, TRUE, TRUE, TRUE),
 ('user', 'supplier', FALSE, TRUE, FALSE, FALSE),
 ('user', 'party', FALSE, TRUE, FALSE, FALSE),
 ('user', 'bank', FALSE, TRUE, FALSE, FALSE),
@@ -372,5 +411,7 @@ VALUES
 ('user', 'memo_entry', TRUE, TRUE, TRUE, FALSE),
 ('user', 'order_form', TRUE, TRUE, TRUE, FALSE),
 ('user', 'item', FALSE, TRUE, FALSE, FALSE),
-('user', 'item_entry', TRUE, TRUE, TRUE, FALSE)
+('user', 'item_entry', TRUE, TRUE, TRUE, FALSE),
+('user', 'firm', FALSE, TRUE, FALSE, FALSE),
+('user', 'firm_bank', FALSE, TRUE, FALSE, FALSE)
 ON CONFLICT (role, resource) DO NOTHING;
