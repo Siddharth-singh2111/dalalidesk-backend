@@ -196,9 +196,29 @@ def get_memo_entry(memo_id: int) -> Dict:
     def parse_json_field(field_value, default=None):
         if not field_value:
             return default or []
+            
+        # Handle case where field_value is already parsed (not a string)
+        if not isinstance(field_value, str):
+            return field_value
+            
         try:
-            return json.loads(field_value)
-        except:
+            parsed_value = json.loads(field_value)
+            return parsed_value
+        except json.JSONDecodeError as e:
+            # Log the error and the problematic value
+            print(f"Error parsing JSON field: {e}")
+            print(f"Field value: {repr(field_value)}")
+            
+            # If it's a string but not valid JSON, and looks like a list, 
+            # try to handle it with special treatment for newlines
+            if field_value.startswith('[') and field_value.endswith(']'):
+                try:
+                    # Try one more time with escaped newlines
+                    return json.loads(field_value.replace('\n', '\\n'))
+                except:
+                    # If still failing, just return the string as a single item in a list
+                    return [field_value[1:-1].strip('"')]
+            
             return default or []
     
     # Construct result

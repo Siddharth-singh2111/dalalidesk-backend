@@ -250,15 +250,15 @@ class MemoEntry(Entry):
                 data['rate_difference_details'] = less_details['rate_difference']
         
         # Process notes if present
-        if 'notes' in data and data['notes'] is not None:
+        if "notes" in data and data["notes"] is not None:
             processed_notes = []
-            for note_line in data['notes']:
-                if isinstance(note_line, str):
-                    # Replace newlines with spaces and strip leading/trailing whitespace
-                    processed_line = note_line.replace('\\n', ' ').strip()
-                    # Add to list only if it's not empty after processing
-                    if processed_line:
-                        processed_notes.append(processed_line)
+            for note_string in data["notes"]:
+                if isinstance(note_string, str):
+                    # Split by newline, strip whitespace, filter empty strings
+                    lines = [line.strip() for line in note_string.split('\\n') if line.strip()]
+                    # Join lines with ". " and add to processed list if any lines exist
+                    if lines:
+                        processed_notes.append(". ".join(lines))
             data['notes'] = processed_notes
         else:
              # Ensure notes is always a list, even if not present or None in input
