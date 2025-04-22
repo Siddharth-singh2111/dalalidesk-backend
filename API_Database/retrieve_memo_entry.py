@@ -148,13 +148,20 @@ def get_memo_entry(memo_id: int) -> Dict:
     bills_data = execute_query(select_query.get_sql())['result']
     for bill in bills_data:
         if bill['bill_number'] is None:
-            bill['bill_number'] = -1
+            if bill['type'] == 'ST':
+                bill['bill_number'] = -2
+            elif bill['type'] == 'PR':
+                bill['bill_number'] = -1
+    
     
     # Determine mode
     mode = 'Full'
     for bill in bills_data:
         if bill['type'] == 'PR':
             mode = 'Part'
+            break
+        elif bill['type'] == 'ST':
+            mode = 'Settlement'
             break
     
     # Get part payments if full mode
@@ -342,8 +349,22 @@ def get_all_memo_entries_with_names(page=None, page_size=None, filters=None) -> 
         # Columns needed for group by (without aliases)
         name_cols_group = [supplier_table.name, party_table.name, users_table.full_name, users_updated_table.full_name]
 
-        # Memo mode column using conditional aggregation
-        memo_mode_col = Case().when(fn.Coalesce(fn.Max(Case().when(mb.type == 'PR', 1).else_(0)), 0) == 1, 'Part').else_('Full').as_('memo_mode')
+        print("I am here")
+        # Calculate memo_mode based on memo_bills types (ST > PR > Full)
+        # Assign priority: 2 for 'ST', 1 for 'PR', 0 otherwise. Take the max priority.
+        max_priority_subquery = fn.Coalesce(fn.Max(
+            Case()
+            .when(mb.type == 'ST', 2)
+            .when(mb.type == 'PR', 1)
+            .else_(0)
+        ), 0)
+        
+        # Determine memo_mode based on the highest priority bill type found
+        memo_mode_col = Case() \
+            .when(max_priority_subquery == 2, 'Settlement') \
+            .when(max_priority_subquery == 1, 'Part') \
+            .else_('Full') \
+            .as_('memo_mode')
 
         # All selected columns
         select_cols = memo_entry_cols_select + name_cols_select + [memo_mode_col]

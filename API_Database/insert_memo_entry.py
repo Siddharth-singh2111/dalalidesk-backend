@@ -23,6 +23,8 @@ def insert_memo_entry(entry: MemoEntry) -> Dict:
         return status
     elif entry.mode == 'Part':
         return insert_part_memo(entry, memo_id)
+    elif entry.mode == 'Settlement':
+        return status
     else:
         raise DataError('Invalid Memo Type')
 

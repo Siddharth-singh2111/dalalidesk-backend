@@ -30,6 +30,8 @@ class MemoBill(Entry):
                 raise DataError(f"Part Payment {part_payment['memo_number']} is used")
             else:
                 ret = delete_by_id(part_payment['id'], 'part_payments')
+        elif self.type == 'ST':
+            return {}
         else:
             if self.bill_id is None:
                 raise DataError('bill_id is None for non-PR memo bill')
@@ -65,7 +67,7 @@ class MemoBill(Entry):
             data['bill_id'] = None
         if 'type' not in data:
             raise DataError('Memo Bill type not found')
-        elif data['type'] not in ['F', 'D', 'G', 'PR']:
+        elif data['type'] not in ['F', 'D', 'G', 'PR', 'ST']:
             raise DataError(f"Memo Bill type {data['type']} not supported")
         else:
             data['memo_type'] = data['type']
