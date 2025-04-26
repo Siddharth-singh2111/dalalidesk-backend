@@ -23,7 +23,9 @@ def insert_memo_entry(entry: MemoEntry) -> Dict:
         return status
     elif entry.mode == 'Part':
         return insert_part_memo(entry, memo_id)
-    elif entry.mode == 'Settlement':
+    elif entry.mode == 'Payment Settlement':
+        return status
+    elif entry.mode == 'Dalali Settlement':
         return status
     else:
         raise DataError('Invalid Memo Type')
@@ -45,13 +47,15 @@ def insert_memo(entry: MemoEntry) -> None:
         'supplier_id', 'party_id', 'memo_number', 'register_date', 'amount', 
         'gr_amount', 'deduction', 'discount', 'other_deduction', 'rate_difference',
         'gr_amount_details', 'discount_details', 'other_deduction_details', 
-        'rate_difference_details', 'notes'
+        'rate_difference_details', 'notes',
+        'parent_dalali_id', 'parent_memo_id', 'memo_type', 'less_gst', 'commision'
     ).insert(
         entry.supplier_id, entry.party_id, entry.memo_number, entry.register_date, 
         entry.amount, entry.gr_amount, entry.deduction, entry.discount, 
         entry.other_deduction, entry.rate_difference, gr_amount_details_json,
         discount_details_json, other_deduction_details_json, rate_difference_details_json,
-        notes_json
+        notes_json, entry.parent_dalali_id, entry.parent_memo_id, entry.memo_type,
+        entry.less_gst, entry.commision
     )
     
     sql = insert_query.get_sql()

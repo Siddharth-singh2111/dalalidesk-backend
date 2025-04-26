@@ -9,9 +9,9 @@ from Entities import RegisterEntry, MemoEntry, OrderForm, Item, ItemEntry
 from Tests import TestKhataReport
 from Reports import make_report
 from Tests import check_status_and_return_class, cleanup, print_dict_diff
-TEST_SUPPLIER_NAME = 'test_sspli4334'
-TEST_PARTY_NAME = 'test_ppr433'
-TEST_BILL_NUMBER = '123456'
+TEST_SUPPLIER_NAME = 'tes_spffli4334'
+TEST_PARTY_NAME = 'test_sprjjj33'
+TEST_BILL_NUMBER = '13456'
 TEST_MEMO_NUMBER1 = 22707
 TEST_MEMO_NUMBER2 = 370315
 TODAY = datetime.now().date()

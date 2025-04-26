@@ -7,7 +7,7 @@ import math
 import sys
 sys.path.append('../')
 
-def calculate_commission(amount: float, gst_percentage: float = 4.762) -> float:
+def calculate_commission(amount: float, gst_percentage: float = 4.762) -> Dict[str, float]:
     """
     Calculate commission amount based on memo amount.
     
@@ -23,7 +23,9 @@ def calculate_commission(amount: float, gst_percentage: float = 4.762) -> float:
         gst_percentage: The GST percentage to remove (must be a finite, non-negative number; default: 4.762).
         
     Returns:
-        The calculated commission amount rounded to 2 decimal places.
+        A dictionary containing:
+        - 'amount_without_gst': The memo amount with GST removed, rounded to 2 decimal places.
+        - 'commission': The calculated commission amount rounded to 2 decimal places.
         
     Raises:
         DataError: If any of the input validations fail.
@@ -37,15 +39,27 @@ def calculate_commission(amount: float, gst_percentage: float = 4.762) -> float:
     # Validate that gst_percentage is a numeric, finite, and non-negative value.
     if not isinstance(gst_percentage, (int, float)) or not math.isfinite(gst_percentage):
         raise DataError("Invalid GST percentage: must be a finite number.")
+    
+    # If 5 or 12 change it to 4.762 or 10.7
+    if gst_percentage == 5: # 5% GST
+        gst_percentage = 4.762
+    elif gst_percentage == 12: # 12% GST
+        gst_percentage = 10.7
+
     if gst_percentage != 4.762 and gst_percentage != 10.7:
         raise DataError("Invalid GST percentage: must be 4.762 or 10.7.")
-    
-
     # Remove GST from amount
     amount_without_gst = amount - (amount * (gst_percentage / 100))
+    amount_without_gst = math.ceil(amount_without_gst)
+    
     # Calculate 2% commission on the amount after GST removal
     commission = amount_without_gst * 0.02
-    return round(commission, 2)
+    commission = math.ceil(commission)
+    
+    return {
+        'amount_without_gst': amount_without_gst,
+        'commission': commission
+    }
 
 def get_memo_dalali_payment(memo_id: int) -> Optional[Dict]:
     """
@@ -119,11 +133,14 @@ def get_all_memo_entries_with_dalali(start_date: str = None, end_date: str = Non
     response = execute_query(sql)
     result = response['result']
     
-    # Calculate commission amount for each memo entry
+    # Calculate commission amount and amount without GST for each memo entry
     for entry in result:
         if entry['amount'] is not None:
-            entry['commission_amount'] = calculate_commission(float(entry['amount']))
+            commission_result = calculate_commission(float(entry['amount']))
+            entry['amount_without_gst'] = commission_result['amount_without_gst']
+            entry['commission_amount'] = commission_result['commission']
         else:
+            entry['amount_without_gst'] = 0
             entry['commission_amount'] = 0
             
         # If no dalali payment record exists, set default values

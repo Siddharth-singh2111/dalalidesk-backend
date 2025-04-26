@@ -44,6 +44,8 @@ class Individual:
         self.phone_number = self._parse_number(phone_number)
         city = kwargs.get('city', None)
         self.city = city
+        gst_default = kwargs.get('gst_default', None)
+        self.gst_default = gst_default
         self.table_name = table_name
         self.id = kwargs.get('id', None)
         if self.id is not None:
@@ -79,6 +81,8 @@ class Individual:
             update_fields.append(f"phone_number='{self.phone_number}'")
         if self.city:
             update_fields.append(f"city='{self.city}'")
+        if self.gst_default is not None:
+            update_fields.append(f"gst_default={self.gst_default}")
             
         # Add audit fields
         if current_user_id is not None:
@@ -213,6 +217,10 @@ class Individual:
         if entity.city is not None:
             columns.append('city')
             values.append(f"'{entity.city}'")
+            
+        if entity.gst_default is not None:
+            columns.append('gst_default')
+            values.append(f"{entity.gst_default}")
             
         # Add audit fields
         if current_user_id is not None:

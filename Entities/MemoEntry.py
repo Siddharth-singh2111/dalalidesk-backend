@@ -12,6 +12,7 @@ from .Entry import Entry
 from .MemoBill import MemoBill
 from API_Database import insert_memo_entry
 from API_Database import retrieve_memo_entry, get_memo_entry, get_memo_entry_id, get_memo_bills_by_id
+from API_Database.retrieve_memo_dalali import calculate_commission
 from API_Database import get_next_available_memo_number
 from API_Database import update_part_payment
 from API_Database import parse_date, sql_date, delete_memo_payments
@@ -46,6 +47,11 @@ class MemoEntry(Entry):
     other_deduction_details: List[str]
     rate_difference_details: List[str]
     notes: List[str]
+    parent_dalali_id: Optional[int]
+    parent_memo_id: Optional[int]
+    memo_type: str
+    less_gst: int
+    commision: int
     _report_attribute_mapping = {'memo_number': 'memo_no', 'register_date': 'memo_date', 'amount': 'chk_amt', 'type': 'memo_type'}
 
     def __init__(self, memo_number: int, supplier_id: int, party_id: int, amount: int, mode: str, register_date: Union[str, datetime], 
@@ -56,6 +62,8 @@ class MemoEntry(Entry):
                  gr_amount_details: Optional[List[str]]=None, discount_details: Optional[List[str]]=None, 
                  other_deduction_details: Optional[List[str]]=None, rate_difference_details: Optional[List[str]]=None,
                  notes: Optional[List[str]]=None,
+                 parent_dalali_id: Optional[int]=None, parent_memo_id: Optional[int]=None,
+                 memo_type: str='Full', less_gst: int=0, commision: int=0,
                  table_name: str='memo_entry', *args, **kwargs) -> None:
         """Initializes a MemoEntry with memo number, supplier ID, party ID, amount, mode, register date, and associated bills and payments."""
         super().__init__(*args, table_name=table_name, **kwargs)
@@ -78,6 +86,11 @@ class MemoEntry(Entry):
         self.other_deduction_details = other_deduction_details or []
         self.rate_difference_details = rate_difference_details or []
         self.notes = notes or []
+        self.parent_dalali_id = parent_dalali_id
+        self.parent_memo_id = parent_memo_id
+        self.memo_type = memo_type
+        self.less_gst = less_gst
+        self.commision = commision
         self.memo_bills: List[MemoBill] = []
 
     def full_payment(self) -> None:
@@ -101,17 +114,6 @@ class MemoEntry(Entry):
         Store settlement payments into the database
         """
         self.memo_bills.append(MemoBill(None, self.amount, 'ST'))
-
-    def generate_memo_bills_and_update_status(self):
-        """
-        Insert the memo entry into the database
-        """
-        if self.mode == 'Full':
-            self.full_payment()
-        elif self.mode == 'Part':
-            self.database_partial_payment()
-        elif self.mode == 'Settlement':
-            self.database_settlement_payment()
 
     def _auto_assign(self, attr_name: str) -> None:
         """
@@ -207,10 +209,71 @@ class MemoEntry(Entry):
         memo_entry = cls.from_dict(data, parse_memo_bills=True)
         return memo_entry
 
+    def calculate_less_gst_and_commission(self, gst_percentage: float = 4.762) -> None:
+        """
+        Calculate less_gst and commission for the memo entry using the calculate_commission function.
+        
+        Args:
+            gst_percentage: The GST percentage to use for calculation (default: 4.762)
+        """
+        if self.amount <= 0:
+            self.less_gst = 0
+            self.commision = 0
+            return
+            
+        try:
+            result = calculate_commission(self.amount, gst_percentage)
+            self.less_gst = int(result['amount_without_gst'])
+            self.commision = int(result['commission'])
+        except Exception as e:
+            # Log the error but continue with default values
+            print(f"Error calculating less_gst and commission: {e}")
+            self.less_gst = 0
+            self.commision = 0
+    
+    def payment_settlement(self):
+        """
+        Store payment settlement into the database 
+        (Previously was just 'Settlement')
+        """
+        self.memo_bills.append(MemoBill(None, self.amount, 'ST'))
+        self.memo_type = 'Payment Settlement'
+        
+    def dalali_settlement(self):
+        """
+        Store dalali settlement into the database
+        """
+        self.memo_bills.append(MemoBill(None, self.amount, 'DT'))
+        self.memo_type = 'Dalali Settlement'
+
+
+    def generate_memo_bills_and_update_status(self):
+        """
+        Insert the memo entry into the database
+        """
+        if self.mode == 'Full':
+            self.full_payment()
+            self.memo_type = 'Full'
+        elif self.mode == 'Part':
+            self.database_partial_payment()
+            self.memo_type = 'Part'
+        elif self.mode == 'Payment Settlement' or self.mode == 'Settlement':
+            self.memo_type = 'Payment Settlement'
+            self.mode = 'Payment Settlement'
+            self.payment_settlement()
+        elif self.mode == 'Dalali Settlement':
+            self.dalali_settlement()
+        
+        # Calculate less_gst and commission for all memo types (will be 0 if not applicable)
+        if not self.less_gst and not self.commision:
+            self.calculate_less_gst_and_commission()
+
     @classmethod
     def from_dict(cls, data: Dict, parse_memo_bills: bool=False) -> MemoEntry:
         """Creates a MemoEntry instance from a dictionary of attributes, optionally parsing memo bills."""
-        int_attributes = ['memo_number', 'supplier_id', 'party_id', 'amount', 'selected_bills', 'gr_amount', 'deduction', 'discount', 'other_deduction', 'rate_difference' ]
+        int_attributes = ['memo_number', 'supplier_id', 'party_id', 'amount', 'selected_bills', 
+                         'gr_amount', 'deduction', 'discount', 'other_deduction', 'rate_difference',
+                         'parent_dalali_id', 'parent_memo_id', 'less_gst', 'commision']
         # Process selected_bills
         if 'selected_bills' in data:
             data['selected_bills'] = [int(bill['id']) for bill in data['selected_bills']]

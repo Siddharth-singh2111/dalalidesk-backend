@@ -7,6 +7,7 @@ CREATE TABLE supplier (
     address VARCHAR(300),
     phone_number VARCHAR(20),
     city VARCHAR(20) CHECK (city IN ('Bangalore', 'Jaipur', 'Kolkata', 'Surat', 'Varanasi', 'Belgaum', 'Mumbai', 'Delhi', 'Mau')),
+    gst_default DECIMAL DEFAULT 5.0,
     UNIQUE (name),
     last_update TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -102,6 +103,11 @@ CREATE TABLE memo_entry(
     other_deduction_details TEXT,
     rate_difference_details TEXT,
     notes TEXT,
+    parent_dalali_id INT,
+    parent_memo_id INT,
+    memo_type VARCHAR(20) CHECK (memo_type IN ('Full', 'Part', 'Payment Settlement', 'Dalali Settlement')) DEFAULT 'Full',
+    less_gst INT DEFAULT 0,
+    commision INT DEFAULT 0,
     UNIQUE (memo_number, party_id, supplier_id, register_date),
     last_update TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -109,7 +115,8 @@ CREATE TABLE memo_entry(
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_updated_by BIGINT,
     FOREIGN KEY (party_id) REFERENCES party(id),
-    FOREIGN KEY (supplier_id) REFERENCES supplier(id)
+    FOREIGN KEY (supplier_id) REFERENCES supplier(id),
+    FOREIGN KEY (parent_memo_id) REFERENCES memo_entry(id)
 );
 
 CREATE SEQUENCE memo_payments_seq;
