@@ -3,7 +3,7 @@ from typing import List, Dict, Union
 from datetime import datetime
 from Individual import Supplier, Party
 from API_Database import efficiency, parse_date
-from API_Database import retrieve_register_entry, retrieve_partial_payment, retrieve_order_form
+from API_Database import retrieve_register_entry, retrieve_partial_payment, retrieve_order_form, retrieve_memo_settlement_rows
 from itertools import zip_longest
 
 class MetaTable:
@@ -44,6 +44,8 @@ class MetaTable:
                 part_data = self.generate_part_columns_bulk(**part_args)
             elif self.part_display_mode == 'row':
                 part_data = self.generate_part_rows_bulk(**part_args)
+                if self.title == 'Khata Report':
+                    part_data.extend(self.generate_settlement_rows_bulk(**part_args))
             else:
                 part_data = []
             print('Grouping part data...')
@@ -120,12 +122,25 @@ class MetaTable:
         """
         return retrieve_partial_payment.get_partial_payment(supplier_id, party_id)
 
+    def generate_settlement_rows(self, supplier_id: int, party_id: int, **kwargs):
+        """
+        Generate settlement rows for a given header and subheader
+        """
+        return retrieve_memo_settlement_rows.get_memo_settlement(supplier_id, party_id)
+
     def generate_part_rows_bulk(self, supplier_ids: List[int], party_ids: List[int], supplier_all: bool=False, party_all: bool=False, **kwargs):
         """
         Generate part rows for multiple headers and subheaders in bulk.
         Uses optimized bulk query when all flags are set.
         """
         return retrieve_partial_payment.get_partial_payment_bulk(supplier_ids, party_ids, supplier_all=supplier_all, party_all=party_all)
+        
+    def generate_settlement_rows_bulk(self, supplier_ids: List[int], party_ids: List[int], supplier_all: bool=False, party_all: bool=False, **kwargs):
+        """
+        Generate settlement rows for multiple headers and subheaders in bulk.
+        Uses optimized bulk query when all flags are set.
+        """
+        return retrieve_memo_settlement_rows.get_memo_settlement_bulk(supplier_ids, party_ids, supplier_all=supplier_all, party_all=party_all)
 
     def generate_part_columns_bulk(self, supplier_ids: List[int], party_ids: List[int], supplier_all: bool=False, party_all: bool=False, **kwargs):
         """
@@ -217,6 +232,8 @@ class HeaderSubheaderTable(MetaTable):
             data_rows = self.merge_dicts_parallel(self.generate_part_columns_bulk(**part_args), data_rows)
         elif self.part_display_mode == 'row':
             data_rows.extend(self.generate_part_rows_bulk(**part_args))
+            # Add settlement rows after part rows
+            data_rows.extend(self.generate_settlement_rows_bulk(**part_args))
         total_rows = self.generate_total_rows(data_rows)
         cumulative = self.generate_cumulative(header_id, subheader_id, start_date, end_date)
         for row in data_rows:
@@ -279,6 +296,8 @@ class HeaderTable(MetaTable):
             data_rows = self.merge_dicts_parallel(self.generate_part_columns_bulk(**part_args), data_rows)
         elif self.part_display_mode == 'row':
             data_rows.extend(self.generate_part_rows_bulk(**part_args))
+            # Add settlement rows after part rows
+            data_rows.extend(self.generate_settlement_rows_bulk(**part_args))
         total_rows = self.generate_total_rows(data_rows)
         for row in data_rows:
             for column in self.numeric_columns:

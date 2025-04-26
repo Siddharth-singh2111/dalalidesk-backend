@@ -95,6 +95,12 @@ class MemoEntry(Entry):
         Store partial payments into the database
         """
         self.memo_bills.append(MemoBill(None, self.amount, 'PR'))
+    
+    def database_settlement_payment(self):
+        """
+        Store settlement payments into the database
+        """
+        self.memo_bills.append(MemoBill(None, self.amount, 'ST'))
 
     def generate_memo_bills_and_update_status(self):
         """
@@ -104,6 +110,8 @@ class MemoEntry(Entry):
             self.full_payment()
         elif self.mode == 'Part':
             self.database_partial_payment()
+        elif self.mode == 'Settlement':
+            self.database_settlement_payment()
 
     def _auto_assign(self, attr_name: str) -> None:
         """
@@ -242,8 +250,19 @@ class MemoEntry(Entry):
                 data['rate_difference_details'] = less_details['rate_difference']
         
         # Process notes if present
-        if 'notes' in data:
-            data['notes'] = data['notes']
+        if "notes" in data and data["notes"] is not None:
+            processed_notes = []
+            for note_string in data["notes"]:
+                if isinstance(note_string, str):
+                    # Split by newline, strip whitespace, filter empty strings
+                    lines = [line.strip() for line in note_string.split('\\n') if line.strip()]
+                    # Join lines with ". " and add to processed list if any lines exist
+                    if lines:
+                        processed_notes.append(". ".join(lines))
+            data['notes'] = processed_notes
+        else:
+             # Ensure notes is always a list, even if not present or None in input
+             data['notes'] = []
         
         # Convert int attributes
         data = cls.convert_int_attributes(data, int_attributes)
