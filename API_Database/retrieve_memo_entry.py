@@ -346,7 +346,7 @@ def get_all_memo_entries_with_names(page=None, page_size=None, filters=None) -> 
         # Columns from memo_entry table to select and group by
         memo_entry_cols_select = [
             memo_entry_table.id, memo_entry_table.memo_number, memo_entry_table.supplier_id,
-            memo_entry_table.party_id, fn.ToChar(memo_entry_table.register_date, 'YYYY-MM-DD').as_('register_date'), 
+            memo_entry_table.party_id, fn.ToChar(memo_entry_table.register_date, 'DD/MM/YYYY').as_('register_date'), 
             memo_entry_table.amount, memo_entry_table.gr_amount, memo_entry_table.deduction, 
             memo_entry_table.discount, memo_entry_table.other_deduction, memo_entry_table.rate_difference,
             memo_entry_table.gr_amount_details, memo_entry_table.discount_details,
