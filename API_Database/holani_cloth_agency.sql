@@ -106,6 +106,7 @@ CREATE TABLE memo_entry(
     parent_dalali_id INT,
     parent_memo_id INT,
     memo_type VARCHAR(20) CHECK (memo_type IN ('Full', 'Part', 'Payment Settlement', 'Dalali Settlement')) DEFAULT 'Full',
+    less_gst_percentage DECIMAL,
     less_gst INT DEFAULT 0,
     commision INT DEFAULT 0,
     UNIQUE (memo_number, party_id, supplier_id, register_date),
@@ -289,7 +290,7 @@ CREATE TABLE firm_bank (
     FOREIGN KEY (firm_id) REFERENCES firm(id)
 );
 
--- Audit trail schema
+-- Audit trail schemaALTER TABLE memo_entry ADD COLUMN IF NOT EXISTS less_gst_percentage DECIMAL;
 CREATE SEQUENCE IF NOT EXISTS users_seq;
 CREATE TABLE IF NOT EXISTS users (
     id BIGINT DEFAULT NEXTVAL('users_seq') PRIMARY KEY,

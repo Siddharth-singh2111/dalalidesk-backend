@@ -87,3 +87,24 @@ def get_individual_by_id(id: int, table_name: str) -> dict:
         error_message = f'Multiple {table_name} of id {id}'
         raise DataError(error_message)
     return result[0]
+
+def get_supplier_gst_default(supplier_id: int) -> float:
+    """
+    Get supplier's default GST percentage
+    
+    Args:
+        supplier_id: The ID of the supplier
+        
+    Returns:
+        The default GST percentage for the supplier (e.g., 5.0, 12.0)
+        
+    Raises:
+        DataError: If the supplier is not found
+    """
+    try:
+        supplier_data = get_individual_by_id(supplier_id, 'supplier')
+        # Return the gst_default value, or 5.0 if not set
+        return float(supplier_data.get('gst_default', 5.0))
+    except Exception as e:
+        # In case of any error, return the default value of 5.0
+        return 5.0

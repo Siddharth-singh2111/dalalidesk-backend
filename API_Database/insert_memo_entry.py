@@ -48,18 +48,31 @@ def insert_memo(entry: MemoEntry) -> None:
         'gr_amount', 'deduction', 'discount', 'other_deduction', 'rate_difference',
         'gr_amount_details', 'discount_details', 'other_deduction_details', 
         'rate_difference_details', 'notes',
-        'parent_dalali_id', 'parent_memo_id', 'memo_type', 'less_gst', 'commision'
+        'parent_dalali_id', 'parent_memo_id', 'memo_type', 
+        'less_gst_percentage', 'less_gst', 'commision'
     ).insert(
         entry.supplier_id, entry.party_id, entry.memo_number, entry.register_date, 
         entry.amount, entry.gr_amount, entry.deduction, entry.discount, 
         entry.other_deduction, entry.rate_difference, gr_amount_details_json,
         discount_details_json, other_deduction_details_json, rate_difference_details_json,
         notes_json, entry.parent_dalali_id, entry.parent_memo_id, entry.memo_type,
-        entry.less_gst, entry.commision
+        entry.less_gst_percentage, entry.less_gst, entry.commision
     )
     
     sql = insert_query.get_sql()
-    return execute_query(sql)
+    result = execute_query(sql)
+    
+    # Update the less_gst_percentage separately if it exists
+    if hasattr(entry, 'less_gst_percentage') and entry.less_gst_percentage is not None:
+        memo_id = MemoEntry.get_memo_entry_id(entry.supplier_id, entry.party_id, entry.memo_number)
+        memo_entry_table = Table('memo_entry')
+        update_query = Query.update(memo_entry_table).set(
+            memo_entry_table.less_gst_percentage, entry.less_gst_percentage
+        ).where(memo_entry_table.id == memo_id)
+        update_sql = update_query.get_sql()
+        execute_query(update_sql)
+        
+    return result
 
 def insert_memo_bill(entry: MemoBill, memo_id: int) -> None:
     """

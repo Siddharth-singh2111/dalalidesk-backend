@@ -209,17 +209,28 @@ class MemoEntry(Entry):
         memo_entry = cls.from_dict(data, parse_memo_bills=True)
         return memo_entry
 
-    def calculate_less_gst_and_commission(self, gst_percentage: float = 4.762) -> None:
+    def calculate_less_gst_and_commission(self, gst_percentage: float = None) -> None:
         """
         Calculate less_gst and commission for the memo entry using the calculate_commission function.
         
+        If gst_percentage is not provided, it will fetch the supplier's default GST value.
+        
         Args:
-            gst_percentage: The GST percentage to use for calculation (default: 4.762)
+            gst_percentage: The GST percentage to use for calculation (optional)
         """
         if self.amount <= 0:
             self.less_gst = 0
             self.commision = 0
+            self.less_gst_percentage = None
             return
+        
+        # If gst_percentage is not provided, get the supplier's default
+        if gst_percentage is None:
+            from API_Database.retrieve_indivijual import get_supplier_gst_default
+            gst_percentage = get_supplier_gst_default(self.supplier_id)
+            
+        # Store the GST percentage used for calculation
+        self.less_gst_percentage = gst_percentage
             
         try:
             result = calculate_commission(self.amount, gst_percentage)
@@ -264,7 +275,8 @@ class MemoEntry(Entry):
         elif self.mode == 'Dalali Settlement':
             self.dalali_settlement()
         
-        # Calculate less_gst and commission for all memo types (will be 0 if not applicable)
+        # Calculate less_gst and commission for all memo types if not already calculated
+        # (will be 0 if not applicable)
         if not self.less_gst and not self.commision:
             self.calculate_less_gst_and_commission()
 

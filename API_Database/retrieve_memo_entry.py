@@ -250,6 +250,7 @@ def get_memo_entry(memo_id: int) -> Dict:
         'parent_dalali_id': memo_data.get('parent_dalali_id'),
         'parent_memo_id': memo_data.get('parent_memo_id'),
         'memo_type': memo_data.get('memo_type', mode),  # Default to mode if memo_type not set
+        'less_gst_percentage': memo_data.get('less_gst_percentage'),
         'less_gst': memo_data.get('less_gst', 0),
         'commision': memo_data.get('commision', 0),
         'created_by': memo_data.get('created_by'),
@@ -353,7 +354,8 @@ def get_all_memo_entries_with_names(page=None, page_size=None, filters=None) -> 
             memo_entry_table.notes, memo_entry_table.last_update, memo_entry_table.created_at,
             memo_entry_table.created_by, memo_entry_table.last_updated, memo_entry_table.last_updated_by,
             memo_entry_table.parent_dalali_id, memo_entry_table.parent_memo_id, 
-            memo_entry_table.memo_type, memo_entry_table.less_gst, memo_entry_table.commision
+            memo_entry_table.memo_type, memo_entry_table.less_gst_percentage,
+            memo_entry_table.less_gst, memo_entry_table.commision
         ]
         # Columns needed for group by (without aliases/functions)
         memo_entry_cols_group = [
@@ -366,7 +368,8 @@ def get_all_memo_entries_with_names(page=None, page_size=None, filters=None) -> 
             memo_entry_table.notes, memo_entry_table.last_update, memo_entry_table.created_at,
             memo_entry_table.created_by, memo_entry_table.last_updated, memo_entry_table.last_updated_by,
             memo_entry_table.parent_dalali_id, memo_entry_table.parent_memo_id, 
-            memo_entry_table.memo_type, memo_entry_table.less_gst, memo_entry_table.commision
+            memo_entry_table.memo_type, memo_entry_table.less_gst_percentage,
+            memo_entry_table.less_gst, memo_entry_table.commision
         ]
 
         # Selected name columns + Aliases

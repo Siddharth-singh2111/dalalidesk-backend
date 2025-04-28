@@ -8,6 +8,8 @@ ALTER TABLE supplier ADD COLUMN IF NOT EXISTS gst_default DECIMAL DEFAULT 5.0;
 ALTER TABLE memo_entry ADD COLUMN IF NOT EXISTS parent_dalali_id INT;
 ALTER TABLE memo_entry ADD COLUMN IF NOT EXISTS parent_memo_id INT REFERENCES memo_entry(id);
 ALTER TABLE memo_entry ADD COLUMN IF NOT EXISTS memo_type VARCHAR(20) CHECK (memo_type IN ('Full', 'Part', 'Payment Settlement', 'Dalali Settlement'));
+
+ALTER TABLE memo_entry ADD COLUMN IF NOT EXISTS less_gst_percentage DECIMAL;
 ALTER TABLE memo_entry ADD COLUMN IF NOT EXISTS less_gst INT DEFAULT 0;
 ALTER TABLE memo_entry ADD COLUMN IF NOT EXISTS commision INT DEFAULT 0;
 

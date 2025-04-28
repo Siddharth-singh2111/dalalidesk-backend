@@ -32,6 +32,8 @@ class MemoBill(Entry):
                 ret = delete_by_id(part_payment['id'], 'part_payments')
         elif self.type == 'ST':
             return {}
+        elif self.type == 'DT':
+            raise DataError('Delete for dalali settlement not implemented yet')
         else:
             if self.bill_id is None:
                 raise DataError('bill_id is None for non-PR memo bill')
