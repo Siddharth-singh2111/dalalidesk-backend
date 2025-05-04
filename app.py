@@ -9,6 +9,12 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from background_tasks import _perform_backup
 import pytz
 
+from hca_backend.v2.extensions import db
+from hca_backend.v2.core.listeners import audit_before_flush, audit_after_flush
+from hca_backend.v2.api.memo import memo_bp
+
+import os
+
 from OCR.name_cache import NameMatchCache
 from OCR.ocr_queue import OCRQueue
 
@@ -23,6 +29,21 @@ load_dotenv()
 
 # Create Flask app
 app = Flask(__name__)
+
+# Configure database
+db_uri = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Initialize database
+db.init_app(app)
+
+
+with app.app_context():
+        db.Model.metadata.reflect(db.engine, only=['memo_entry', 'memo_bills', 'users'])
+        db.event.listen(db.session, 'before_flush', audit_before_flush)
+        db.event.listen(db.session, 'after_flush', audit_after_flush)
+
 
 # Configure CORS
 CORS(app)
@@ -41,7 +62,7 @@ jwt = JWTManager(app)
 
 # Register blueprints
 app.register_blueprint(v1_bp)
-
+app.register_blueprint(memo_bp)
 # Initialize scheduler
 scheduler = BackgroundScheduler(daemon=True, timezone=pytz.timezone("Asia/Kolkata"))
 scheduler.add_job(func=_perform_backup, trigger="interval", hours=24)

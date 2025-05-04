@@ -2,7 +2,6 @@
 from flask import Flask
 from .extensions import db
 from .api.memo import memo_bp
-from .models import MemoEntry, MemoBills, Users, AuditLog
 from .core.listeners import audit_before_flush, audit_after_flush
 
 def create_app():

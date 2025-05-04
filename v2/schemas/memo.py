@@ -2,7 +2,7 @@ from typing import List, Optional
 from datetime import datetime
 from pydantic import Field
 from .base import BaseSchema
-
+from .user import UserSchema
 class MemoBillSchema(BaseSchema):
     id: int
     memo_id: int
@@ -16,6 +16,9 @@ class MemoEntrySchema(BaseSchema):
     
     # Relationships
     memo_bills: List[MemoBillSchema] = []
+
+    creator: Optional[UserSchema] = None
+    last_updater: Optional[UserSchema] = None
     
 class MemoEntryCreate(BaseSchema):
     memo_number: int

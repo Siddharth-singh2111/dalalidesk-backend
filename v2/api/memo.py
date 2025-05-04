@@ -12,6 +12,8 @@ def get_memo(memo_id):
     entry = (
         MemoEntry.query
         .options(db.selectinload(MemoEntry.memo_bills))
+        .options(db.selectinload(MemoEntry.creator))
+        .options(db.selectinload(MemoEntry.last_updater))
         .get(memo_id)
     )
     if not entry:
