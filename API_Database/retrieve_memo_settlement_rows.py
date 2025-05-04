@@ -30,7 +30,7 @@ def get_memo_settlement_bulk(supplier_ids: List[int], party_ids: List[int], supp
         JOIN memo_bills ON memo_entry.id = memo_bills.memo_id
         JOIN supplier ON memo_entry.supplier_id = supplier.id
         JOIN party ON memo_entry.party_id = party.id
-        WHERE memo_bills.type = 'ST' AND {where_clause}
+        WHERE (memo_bills.type = 'ST' OR memo_bills.type = 'DT') AND {where_clause}
         ORDER BY supplier.name, party.name, memo_entry.register_date, memo_entry.memo_number;
     """
     
@@ -60,7 +60,7 @@ def get_memo_settlement_by_id(memo_id: int) -> Dict:
         JOIN 
             memo_entry me ON mb.memo_id = me.id
         WHERE 
-            mb.memo_id = {memo_id} AND mb.type = 'ST'
+            mb.memo_id = {memo_id} AND (mb.type = 'ST' OR mb.type = 'DT')
     """
     response = execute_query(query)
     num_results = len(response['result'])

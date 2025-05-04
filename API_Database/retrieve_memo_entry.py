@@ -148,7 +148,9 @@ def get_memo_entry(memo_id: int) -> Dict:
     bills_data = execute_query(select_query.get_sql())['result']
     for bill in bills_data:
         if bill['bill_number'] is None:
-            if bill['type'] == 'ST':
+            if bill['type'] == 'DT':
+                bill['bill_number'] = -3
+            elif bill['type'] == 'ST':
                 bill['bill_number'] = -2
             elif bill['type'] == 'PR':
                 bill['bill_number'] = -1
