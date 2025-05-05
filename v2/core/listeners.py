@@ -2,13 +2,13 @@ from sqlalchemy import event, inspect
 from sqlalchemy.orm import Session
 from ..extensions import db
 from ..models.audit import AuditLog
+from ..core.context import get_current_user_id
+
 
 def audit_before_flush(session: Session, flush_context, instances):
     """First phase of auditing - store objects that need auditing before they get IDs"""
-    try:
-        user = 1
-    except Exception:
-        user = None
+    # Get current user ID from context
+    user = get_current_user_id()
 
     # Store new objects for auditing after flush (when they'll have IDs)
     session._objects_to_audit_new = [obj for obj in session.new if not isinstance(obj, AuditLog)]
@@ -36,10 +36,8 @@ def audit_before_flush(session: Session, flush_context, instances):
 
 def audit_after_flush(session: Session, flush_context):
     """Second phase of auditing - create audit records now that objects have IDs"""
-    try:
-        user = 1
-    except Exception:
-        user = None
+    # Get current user ID from context
+    user = get_current_user_id()
         
     # Handle new objects (INSERT)
     for obj in getattr(session, '_objects_to_audit_new', []):

@@ -153,14 +153,15 @@ def execute_query(query: str, dictCursor: bool=True, exec_remote: bool=True, cur
     Returns:
         Dict: The result of the query execution
     """
-    # If current_user_id is not provided, try to get it from Flask's context
+    # If current_user_id is not provided, try to get it from our context module
     if current_user_id is None:
+        try:
             # Import here to avoid circular imports
-            from flask import current_app
-            if current_app:
-                # Only import the function if we're in a Flask context
-                from hca_backend.v1.api import get_user_id_from_token
-                current_user_id = get_user_id_from_token()
+            from hca_backend.v2.core.context import get_current_user_id
+            current_user_id = get_current_user_id()
+        except Exception:
+            # If the context module is not available, fall back to None
+            pass
     
     
     query_type = query.strip().split()[0].upper()

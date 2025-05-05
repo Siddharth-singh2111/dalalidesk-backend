@@ -47,3 +47,8 @@ def delete_memo(memo_id):
         return jsonify({"message": message}), 200
     else:
         return jsonify({"error": message}), 400
+
+@memo_bp.route("/pending/<int:supplier_id>", methods=["GET"])
+def get_pending_memos(supplier_id):
+    memos = MemoService.get_pending_memos(supplier_id)
+    return jsonify([MemoEntrySchema.model_validate(memo).model_dump() for memo in memos])

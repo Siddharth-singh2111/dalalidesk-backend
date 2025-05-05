@@ -11,7 +11,13 @@ import pytz
 
 from hca_backend.v2.extensions import db
 from hca_backend.v2.core.listeners import audit_before_flush, audit_after_flush
-from hca_backend.v2.api.memo import memo_bp
+from hca_backend.v2.api import memo_bp, dalali_bp
+
+# Import Dalali models
+from hca_backend.v2.models.dalali import (
+    DalaliEntry, DalaliBills, PartDalali,
+    DalaliSenderPayments, DalaliReceiverPayments, TdsDetails
+)
 
 import os
 
@@ -40,18 +46,12 @@ db.init_app(app)
 
 
 with app.app_context():
-        db.Model.metadata.reflect(db.engine, only=['memo_entry', 'memo_bills', 'users'])
+        # Reflect existing tables
+        db.Model.metadata.reflect(db.engine)
+        # Create all tables from models
+        db.create_all()
+        # Setup event listeners
         db.event.listen(db.session, 'before_flush', audit_before_flush)
-        db.event.listen(db.session, 'after_flush', audit_after_flush)
-
-
-# Configure CORS
-CORS(app)
-
-# Initialize name cache
-name_cache = NameMatchCache()
-
-# Configure app
 app.config['JSON_SORT_KEYS'] = False
 app.config['JWT_SECRET_KEY'] = 'NHYd198vQNOBa9HrIAGEGNYrKHBegc9Z'
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
@@ -60,9 +60,23 @@ app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(hours=6)
 # Initialize JWT
 jwt = JWTManager(app)
 
+# Before request handler to store user ID in g
+@app.before_request
+def store_user_in_context():
+    from flask import g
+    from hca_backend.v1.api import get_user_id_from_token
+    try:
+        user_id = get_user_id_from_token()
+        g.current_user_id = user_id
+    except Exception:
+        g.current_user_id = None
+
 # Register blueprints
 app.register_blueprint(v1_bp)
 app.register_blueprint(memo_bp)
+app.register_blueprint(dalali_bp)
+
+
 # Initialize scheduler
 scheduler = BackgroundScheduler(daemon=True, timezone=pytz.timezone("Asia/Kolkata"))
 scheduler.add_job(func=_perform_backup, trigger="interval", hours=24)

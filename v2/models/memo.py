@@ -1,11 +1,13 @@
 from ..extensions import db
 from datetime import datetime
+from .dalali import DalaliBills
 
 class MemoEntry(db.Model):
     __tablename__ = "memo_entry"
 
     id = db.Column(db.Integer, primary_key=True)
     memo_number = db.Column(db.Integer, nullable=False)
+    supplier_id = db.Column(db.Integer, db.ForeignKey("supplier.id"), nullable=False)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     last_updated_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
 
@@ -15,6 +17,17 @@ class MemoEntry(db.Model):
         back_populates="memo_entry",
         lazy="selectin",
         cascade="all, delete-orphan"  # This ensures cascade delete
+    )
+
+    dalali_bills = db.relationship(
+        "DalaliBills",
+        back_populates="memo_entry",
+        lazy="selectin",
+    )
+
+    supplier = db.relationship(
+        "Supplier",
+        back_populates="memo_entries",
     )
 
     creator = db.relationship(
