@@ -1,8 +1,11 @@
 from ..extensions import db
 from sqlalchemy.orm import MappedColumn, Mapped, relationship
+from sqlalchemy.ext.hybrid import hybrid_property
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
+import json
 from .supplier import Supplier
+from .firms_and_banks import Bank, Firm, FirmBank
 
 
 # -- dalali_entry
@@ -51,8 +54,8 @@ class DalaliEntry(db.Model):
     supplier = relationship("Supplier", back_populates="dalali_entries")
     dalali_bills = relationship("DalaliBills", back_populates="dalali_entry", cascade="all, delete-orphan")
     part_dalalis = relationship("PartDalali", foreign_keys="PartDalali.dalali_id", back_populates="dalali_entry", cascade="all, delete-orphan")
-    sender_payments = relationship("DalaliSenderPayments", back_populates="dalali_entry", cascade="all, delete-orphan")
-    receiver_payments = relationship("DalaliReceiverPayments", back_populates="dalali_entry", cascade="all, delete-orphan")
+    dalali_sender_payments = relationship("DalaliSenderPayments", back_populates="dalali_entry", cascade="all, delete-orphan")
+    dalali_receiver_payments = relationship("DalaliReceiverPayments", back_populates="dalali_entry", cascade="all, delete-orphan")
     tds_details = relationship("TdsDetails", back_populates="dalali_entry", cascade="all, delete-orphan")
     creator = relationship(
         "Users",
@@ -62,6 +65,23 @@ class DalaliEntry(db.Model):
         "Users",
         foreign_keys=[last_updated_by],
     )
+
+    # Hybrid properties for formatted data access
+    @hybrid_property
+    def less_details(self) -> Dict[str, List[Any]]:
+        """
+        Format other_details as a dict with the structure:
+        {
+            "other_details": [...]
+        }
+        """
+        if self.other_details:
+            try:
+                other_details_list = json.loads(self.other_details)
+            except json.JSONDecodeError:
+                other_details_list = [self.other_details]
+            return {"other_details": other_details_list}
+        return {"other_details": []}
 
     # Check constraint for type and status
     __table_args__ = (
@@ -100,6 +120,15 @@ class DalaliBills(db.Model):
         "Users",
         foreign_keys=[last_updated_by],
     )
+
+    @hybrid_property
+    def memo_number(self) -> Optional[int]:
+        """
+        Return the memo number from the related MemoEntry.
+        """
+        if self.memo_entry:
+            return self.memo_entry.memo_number
+        return None
 
 
 # -- part_dalali
@@ -161,8 +190,8 @@ class DalaliSenderPayments(db.Model):
     last_updated: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)
 
     # Relationships
-    dalali_entry = relationship("DalaliEntry", back_populates="sender_payments")
-    # bank = relationship("Bank")
+    dalali_entry = relationship("DalaliEntry", back_populates="dalali_sender_payments")
+    bank = relationship("Bank", foreign_keys=[bank_id])
     creator = relationship(
         "Users",
         foreign_keys=[created_by],
@@ -171,6 +200,15 @@ class DalaliSenderPayments(db.Model):
         "Users",
         foreign_keys=[last_updated_by],
     )
+
+    @hybrid_property
+    def bank_name(self) -> Optional[str]:
+        """
+        Return the bank name from the related Bank.
+        """
+        if self.bank:
+            return self.bank.name
+        return None
 
 
 # -- dalali_receiver_payments
@@ -200,9 +238,10 @@ class DalaliReceiverPayments(db.Model):
     last_updated: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)
 
     # Relationships
-    dalali_entry = relationship("DalaliEntry", back_populates="receiver_payments")
-    # firm = relationship("Firm")
-    # firm_bank = relationship("FirmBank")
+    dalali_entry = relationship("DalaliEntry", back_populates="dalali_receiver_payments")
+    firm = relationship("Firm", foreign_keys=[firm_id])
+    firm_bank = relationship("FirmBank", foreign_keys=[firm_bank_id])
+
     creator = relationship(
         "Users",
         foreign_keys=[created_by],
@@ -211,6 +250,24 @@ class DalaliReceiverPayments(db.Model):
         "Users",
         foreign_keys=[last_updated_by],
     )
+
+    @hybrid_property
+    def firm_name(self) -> Optional[str]:
+        """
+        Return the firm name from the related Firm.
+        """
+        if self.firm:
+            return self.firm.name
+        return None
+    
+    @hybrid_property
+    def firm_bank_name(self) -> Optional[str]:
+        """
+        Return the firm bank name from the related FirmBank.
+        """
+        if self.firm_bank:
+            return self.firm_bank.name
+        return None
 
 
 # -- tds_details

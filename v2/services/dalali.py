@@ -1,7 +1,8 @@
-from typing import List, Optional, Tuple, Dict, Any, Union
+from typing import List, Optional, Tuple, Dict, Any, Union, cast
 import json
 from datetime import datetime
 from sqlalchemy.exc import IntegrityError
+from hca_backend.Exceptions import DataError
 from ..models.dalali import (
     DalaliEntry, DalaliBills, PartDalali, 
     DalaliSenderPayments, DalaliReceiverPayments, TdsDetails
@@ -18,6 +19,9 @@ class DalaliService:
         """
         try:
             # Start a transaction
+            # Extract and format the other_details from less_details
+            other_details_data = data.get("less_details", {}).get("other_details", [])
+            
             dalali_entry = DalaliEntry(
                 dalali_number=data.get("dalali_number"),
                 supplier_id=data.get("supplier_id"),
@@ -27,16 +31,15 @@ class DalaliService:
                 tds_deduction=data.get("tds_deduction"),
                 other_deduction=data.get("other_deduction"),
                 settlement_deduction=data.get("settlement_deduction"),
-                other_details=json.dumps(data.get("less_details", {}).get("other_details", [])) 
-                            if data.get("less_details") else None,
-                notes=json.dumps(data.get("notes", [])) if data.get("notes") else None,
+                other_details=json.dumps(other_details_data),
+                notes=json.dumps(data.get("notes", [])),
                 type=data.get("type"),  # Validation already done in schema
                 status=data.get("status"),  # Validation already done in schema
                 reference_page_number=data.get("reference_page_number"),
                 tally_billy_no=data.get("tally_bill_number"),
                 created_by=data.get("created_by")
             )
-            
+            print("after dalali_entry")
             db.session.add(dalali_entry)
             db.session.flush()  # Get the ID without committing
             
@@ -45,62 +48,69 @@ class DalaliService:
                 for bill_data in data["dalali_bills"]:
                     dalali_bill = DalaliBills(
                         dalali_id=dalali_entry.id,
-                        memo_id=bill_data.id,  # Using id directly from our schema
+                        memo_id=bill_data.get("memo_id"),  # Using id directly from our schema
                         created_by=data.get("created_by")
                     )
                     db.session.add(dalali_bill)
             
+            print("after dalali_bills")
             # Add part dalali entries
             if data.get("part_dalali"):
                 for part_data in data["part_dalali"]:
-                    part_dalali = PartDalali(
-                        dalali_id=dalali_entry.id,
-                        supplier_id=part_data.supplier_id,
-                        used=part_data.used,
-                        use_dalali_id=part_data.use_dalali_id,
-                        created_by=data.get("created_by")
-                    )
-                    db.session.add(part_dalali)
+                    part_dalali = db.session.query(PartDalali).filter_by(id=part_data.get("id")).first()
+                    if part_dalali:
+                        part_dalali.used = part_data.get("used")
+                        part_dalali.use_dalali_id = dalali_entry.id
+                        part_dalali.last_updated_by = data.get("created_by")
+                        part_dalali.last_updated = datetime.now()
+                    else: 
+                        raise DataError(f"Part dalali entry not found for dalali number: {part_data.get('id')}")
             
+            print("after part_dalali")
             # Add sender payments
             if data.get("dalali_sender_payments"):
                 for payment_data in data["dalali_sender_payments"]:
                     sender_payment = DalaliSenderPayments(
                         dalali_id=dalali_entry.id,
-                        bank_id=payment_data.bank_id,
-                        amount=payment_data.amount,
-                        cheque_number=payment_data.cheque,
+                        bank_id=payment_data.get("bank_id"),
+                        amount=payment_data.get("amount"),
+                        cheque_number=payment_data.get("cheque_number"),
                         created_by=data.get("created_by")
                     )
                     db.session.add(sender_payment)
             
+            print("after dalali_sender_payments")
             # Add receiver payments
             if data.get("dalali_receiver_payments"):
                 for payment_data in data["dalali_receiver_payments"]:
                     receiver_payment = DalaliReceiverPayments(
                         dalali_id=dalali_entry.id,
-                        firm_id=payment_data.firm_id,
-                        firm_bank_id=payment_data.firm_bank_id,
-                        amount=payment_data.amount,
-                        received_date=payment_data.received_date,
-                        cheque_number=payment_data.cheque,
+                        firm_id=payment_data.get("firm_id"),
+                        firm_bank_id=payment_data.get("firm_bank_id"),
+                        amount=payment_data.get("amount"),
+                        received_date=payment_data.get("received_date"),
+                        cheque_number=payment_data.get("cheque_number"),
                         created_by=data.get("created_by")
                     )
                     db.session.add(receiver_payment)
             
+            print("after dalali_receiver_payments")
             # Add TDS details
             if data.get("tds_details"):
                 for tds_data in data["tds_details"]:
                     tds_detail = TdsDetails(
                         dalali_id=dalali_entry.id,
-                        amount=tds_data.amount,
-                        checked=tds_data.checked,
+                        amount=tds_data.get("amount"),
+                        checked=tds_data.get("checked"),
                         created_by=data.get("created_by")
                     )
                     db.session.add(tds_detail)
             
+            print("after tds_details")
             # Commit the transaction
             db.session.commit()
+
+            print("after commit")
             return True, dalali_entry
         except Exception as e:
             db.session.rollback()
@@ -136,7 +146,9 @@ class DalaliService:
             if data.get("settlement_deduction") is not None:
                 dalali_entry.settlement_deduction = data.get("settlement_deduction")
             if data.get("less_details") is not None:
-                dalali_entry.other_details = json.dumps(data.get("less_details", {}).get("other_details", []))
+                # Extract and format the other_details from less_details consistently
+                other_details_data = data.get("less_details", {}).get("other_details", [])
+                dalali_entry.other_details = json.dumps(other_details_data)
             if data.get("notes") is not None:
                 dalali_entry.notes = json.dumps(data.get("notes", []))
             if data.get("type") is not None:
@@ -163,7 +175,7 @@ class DalaliService:
                 for bill_data in data["dalali_bills"]:
                     dalali_bill = DalaliBills(
                         dalali_id=dalali_entry.id,
-                        memo_id=bill_data.id,  # Using id directly from our schema
+                        memo_id=bill_data.get("id"),  # Using id directly from our schema
                         created_by=data.get("last_updated_by"),
                         last_updated_by=data.get("last_updated_by")
                     )
@@ -179,9 +191,9 @@ class DalaliService:
                 for part_data in data["part_dalali"]:
                     part_dalali = PartDalali(
                         dalali_id=dalali_entry.id,
-                        supplier_id=part_data.supplier_id,
-                        used=part_data.used,
-                        use_dalali_id=part_data.use_dalali_id,
+                        supplier_id=part_data.get("supplier_id"),
+                        used=part_data.get("used"),
+                        use_dalali_id=part_data.get("use_dalali_id"),
                         created_by=data.get("last_updated_by"),
                         last_updated_by=data.get("last_updated_by")
                     )
@@ -197,9 +209,9 @@ class DalaliService:
                 for payment_data in data["dalali_sender_payments"]:
                     sender_payment = DalaliSenderPayments(
                         dalali_id=dalali_entry.id,
-                        bank_id=payment_data.bank_id,
-                        amount=payment_data.amount,
-                        cheque_number=payment_data.cheque,
+                        bank_id=payment_data.get("bank_id"),
+                        amount=payment_data.get("amount"),
+                        cheque_number=payment_data.get("cheque_number"),
                         created_by=data.get("last_updated_by"),
                         last_updated_by=data.get("last_updated_by")
                     )
@@ -215,11 +227,11 @@ class DalaliService:
                 for payment_data in data["dalali_receiver_payments"]:
                     receiver_payment = DalaliReceiverPayments(
                         dalali_id=dalali_entry.id,
-                        firm_id=payment_data.firm_id,
-                        firm_bank_id=payment_data.firm_bank_id,
-                        amount=payment_data.amount,
-                        received_date=payment_data.received_date,
-                        cheque_number=payment_data.cheque,
+                        firm_id=payment_data.get("firm_id"),
+                        firm_bank_id=payment_data.get("firm_bank_id"),
+                        amount=payment_data.get("amount"),
+                        received_date=payment_data.get("received_date"),
+                        cheque_number=payment_data.get("cheque_number"),
                         created_by=data.get("last_updated_by"),
                         last_updated_by=data.get("last_updated_by")
                     )
@@ -235,9 +247,9 @@ class DalaliService:
                 for tds_data in data["tds_details"]:
                     tds_detail = TdsDetails(
                         dalali_id=dalali_entry.id,
-                        amount=tds_data.amount,
-                        notes=tds_data.note,
-                        checked=tds_data.checked,
+                        amount=tds_data.get("amount"),
+                        notes=tds_data.get("note"),
+                        checked=tds_data.get("checked"),
                         created_by=data.get("last_updated_by"),
                         last_updated_by=data.get("last_updated_by")
                     )
@@ -259,8 +271,8 @@ class DalaliService:
             DalaliEntry.query
             .options(db.selectinload(DalaliEntry.dalali_bills))
             .options(db.selectinload(DalaliEntry.part_dalalis))
-            .options(db.selectinload(DalaliEntry.sender_payments))
-            .options(db.selectinload(DalaliEntry.receiver_payments))
+            .options(db.selectinload(DalaliEntry.dalali_sender_payments))
+            .options(db.selectinload(DalaliEntry.dalali_receiver_payments))
             .options(db.selectinload(DalaliEntry.tds_details))
             .options(db.selectinload(DalaliEntry.creator))
             .options(db.selectinload(DalaliEntry.last_updater))
@@ -308,11 +320,48 @@ class DalaliService:
             query
             .options(db.selectinload(DalaliEntry.dalali_bills))
             .options(db.selectinload(DalaliEntry.part_dalalis))
-            .options(db.selectinload(DalaliEntry.sender_payments))
-            .options(db.selectinload(DalaliEntry.receiver_payments))
+            .options(db.selectinload(DalaliEntry.dalali_sender_payments))
+            .options(db.selectinload(DalaliEntry.dalali_receiver_payments))
             .options(db.selectinload(DalaliEntry.tds_details))
             .options(db.selectinload(DalaliEntry.creator))
             .options(db.selectinload(DalaliEntry.last_updater))
+            .options(db.selectinload(DalaliEntry.supplier))
+        )
+        
+        return query.all(), total
+        
+    @staticmethod
+    def get_unused_part_dalali_entries(
+        supplier_id: int,
+    ) -> Tuple[List[PartDalali], int]:
+        """
+        Get unused part_dalali entries for a specific supplier
+        Returns: (list of entries, total count)
+        """
+        if not supplier_id:
+            return [], 0
+            
+        query = PartDalali.query.filter(
+            PartDalali.supplier_id == supplier_id,
+            PartDalali.used == False
+        )
+        
+        # Get total count
+        total = query.count()
+        
+        # Apply pagination
+        query = (
+            query
+            .order_by(PartDalali.created_at.desc())
+        )
+        
+        # Load relationships
+        query = (
+            query
+            .options(db.selectinload(PartDalali.dalali_entry))
+            .options(db.selectinload(PartDalali.supplier))
+            .options(db.selectinload(PartDalali.creator))
+            .options(db.selectinload(PartDalali.last_updater))
         )
         
         return query.all(), total

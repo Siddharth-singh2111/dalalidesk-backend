@@ -26,6 +26,7 @@ def search_entities(table_name: str, search_query: str, **kwargs):
         'memo_entry': ['memo_number', 'amount', 'supplier_name', 'party_name'],
         'firm': ['name', 'address', 'phone_number'],
         'firm_bank': ['name', 'address', 'phone_number'],
+        'dalali_entry': ['dalali_number', 'amount', 'status', 'supplier_name'],
     }
     
     fields = searchable_fields.get(table_name, ['name'])
@@ -33,22 +34,23 @@ def search_entities(table_name: str, search_query: str, **kwargs):
     # Create table reference
     entity_table = Table(table_name)
     
-    # For register_entry and memo_entry, we need to join with supplier and party
-    if table_name in ['register_entry', 'memo_entry']:
+    # Initialize query
+    query = Query.from_(entity_table)
+    
+    # Select columns and perform joins based on table_name
+    selected_columns = [entity_table.star]
+    
+    if table_name in ['register_entry', 'memo_entry', 'dalali_entry']:
         supplier_table = Table('supplier')
-        party_table = Table('party')
+        query = query.left_join(supplier_table).on(entity_table.supplier_id == supplier_table.id)
+        selected_columns.append(supplier_table.name.as_('supplier_name'))
         
-        query = Query.from_(entity_table)\
-            .left_join(supplier_table).on(entity_table.supplier_id == supplier_table.id)\
-            .left_join(party_table).on(entity_table.party_id == party_table.id)\
-            .select(
-                entity_table.star,
-                supplier_table.name.as_('supplier_name'),
-                party_table.name.as_('party_name')
-            )
-    else:
-        # Start building the query for other entities
-        query = Query.from_(entity_table).select('*')
+    if table_name in ['register_entry', 'memo_entry']:
+        party_table = Table('party')
+        query = query.left_join(party_table).on(entity_table.party_id == party_table.id)
+        selected_columns.append(party_table.name.as_('party_name'))
+        
+    query = query.select(*selected_columns)
     
     # Build search criteria
     search_criteria = None
@@ -64,7 +66,7 @@ def search_entities(table_name: str, search_query: str, **kwargs):
                 else:
                     search_criteria = search_criteria | criterion
         # Handle supplier_id and party_id fields specially
-        elif field in ['supplier_id', 'party_id'] and table_name in ['register_entry', 'memo_entry']:
+        elif field in ['supplier_id', 'party_id']:
             if search_query.isdigit():
                 # If it's a number, search by ID
                 criterion = entity_table[field] == int(search_query)
@@ -77,12 +79,14 @@ def search_entities(table_name: str, search_query: str, **kwargs):
             else:
                 search_criteria = search_criteria | criterion
         # Handle supplier_name and party_name fields
-        elif field in ['supplier_name', 'party_name'] and table_name in ['register_entry', 'memo_entry']:
-            if field == 'supplier_name':
-                criterion = supplier_table.name.ilike(f'%{search_query}%')
-            else:  # party_name
-                criterion = party_table.name.ilike(f'%{search_query}%')
-                
+        elif field == 'supplier_name' and table_name in ['register_entry', 'memo_entry', 'dalali_entry']:
+            criterion = supplier_table.name.ilike(f'%{search_query}%')
+            if search_criteria is None:
+                search_criteria = criterion
+            else:
+                search_criteria = search_criteria | criterion
+        elif field == 'party_name' and table_name in ['register_entry', 'memo_entry']:
+            criterion = party_table.name.ilike(f'%{search_query}%') 
             if search_criteria is None:
                 search_criteria = criterion
             else:
@@ -124,7 +128,7 @@ def search_entities(table_name: str, search_query: str, **kwargs):
                 
                 if field and operator and value is not None:
                     # Handle supplier_name and party_name fields specially for joined tables
-                    if field == 'supplier_name' and table_name in ['register_entry', 'memo_entry']:
+                    if field == 'supplier_name' and table_name in ['register_entry', 'memo_entry', 'dalali_entry']:
                         field_ref = supplier_table.name
                     elif field == 'party_name' and table_name in ['register_entry', 'memo_entry']:
                         field_ref = party_table.name
@@ -165,7 +169,7 @@ def search_entities(table_name: str, search_query: str, **kwargs):
     for key, value in kwargs.items():
         if key not in ['table_name', 'search', 'field_filters'] and value is not None:
             # Handle supplier_name and party_name fields specially for joined tables
-            if key == 'supplier_name' and table_name in ['register_entry', 'memo_entry']:
+            if key == 'supplier_name' and table_name in ['register_entry', 'memo_entry', 'dalali_entry']:
                 query = query.where(supplier_table.name == value)
             elif key == 'party_name' and table_name in ['register_entry', 'memo_entry']:
                 query = query.where(party_table.name == value)

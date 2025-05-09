@@ -8,6 +8,8 @@ class MemoEntry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     memo_number = db.Column(db.Integer, nullable=False)
     supplier_id = db.Column(db.Integer, db.ForeignKey("supplier.id"), nullable=False)
+    amount = db.Column(db.Integer, nullable=False)
+    register_date = db.Column(db.DateTime, default=datetime.now)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     last_updated_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
 

@@ -5,7 +5,7 @@ from ..services.memo import MemoService
 from ..extensions import db
 from pydantic import ValidationError
 
-memo_bp = Blueprint("memo", __name__, url_prefix="/memo")
+memo_bp = Blueprint("memo", __name__, url_prefix="/api/memo")
 
 @memo_bp.route("/<int:memo_id>", methods=["GET"])
 def get_memo(memo_id):

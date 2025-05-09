@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required
 
 from hca_backend.v2.core.context import get_current_user_id
 from ..schemas.dalali import (
-    DalaliEntrySchema, DalaliEntryCreate, DalaliEntryUpdate
+    DalaliEntrySchema, DalaliEntryCreate, DalaliEntryUpdate, PartDalaliSchema
 )
 from ..models.dalali import DalaliEntry
 from ..services.dalali import DalaliService
@@ -11,7 +11,7 @@ from ..extensions import db
 from pydantic import ValidationError
 import json
 
-dalali_bp = Blueprint("dalali", __name__, url_prefix="/dalali")
+dalali_bp = Blueprint("dalali", __name__, url_prefix="/api/dalali")
 
 @jwt_required()
 @dalali_bp.route("/<int:dalali_id>", methods=["GET"])
@@ -31,11 +31,8 @@ def get_dalali(dalali_id):
         except:
             schema.notes = []
     
-    if entry.other_details:
-        try:
-            schema.less_details = {"other_details": json.loads(entry.other_details)}
-        except:
-            schema.less_details = {"other_details": []}
+    # Use the hybrid property for less_details
+    schema.less_details = entry.less_details
     
     return jsonify(schema.model_dump())
 
@@ -73,11 +70,8 @@ def list_dalali():
             except:
                 schema.notes = []
         
-        if entry.other_details:
-            try:
-                schema.less_details = {"other_details": json.loads(entry.other_details)}
-            except:
-                schema.less_details = {"other_details": []}
+        # Use the hybrid property for less_details
+        schema.less_details = entry.less_details
         
         result.append(schema.model_dump())
     
@@ -96,7 +90,6 @@ def create_dalali():
         # Validate incoming data with Pydantic
         current_user_id = get_current_user_id()
         request.json["created_by"] = current_user_id
-
         schema = DalaliEntryCreate.model_validate(request.json)
         data = schema.model_dump()
         
@@ -106,6 +99,8 @@ def create_dalali():
         if not success:
             return jsonify({"error": result}), 400
         
+        print("after create dalali entry")
+        breakpoint()
         # Return created entry
         entry_schema = DalaliEntrySchema.model_validate(result)
         
@@ -116,11 +111,8 @@ def create_dalali():
             except:
                 entry_schema.notes = []
         
-        if result.other_details:
-            try:
-                entry_schema.less_details = {"other_details": json.loads(result.other_details)}
-            except:
-                entry_schema.less_details = {"other_details": []}
+        # Use the hybrid property for less_details
+        entry_schema.less_details = result.less_details
         
         return jsonify(entry_schema.model_dump()), 201
     
@@ -157,11 +149,8 @@ def update_dalali(dalali_id):
             except:
                 entry_schema.notes = []
         
-        if result.other_details:
-            try:
-                entry_schema.less_details = {"other_details": json.loads(result.other_details)}
-            except:
-                entry_schema.less_details = {"other_details": []}
+        # Use the hybrid property for less_details
+        entry_schema.less_details = result.less_details
         
         return jsonify(entry_schema.model_dump())
     
@@ -169,3 +158,24 @@ def update_dalali(dalali_id):
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@jwt_required()
+@dalali_bp.route("/unused-part-dalali/<int:supplier_id>", methods=["GET"])
+def list_unused_part_dalali(supplier_id:int):
+    """List unused part_dalali entries for a specific supplier"""
+    
+    # Get entries from service
+    entries, total = DalaliService.get_unused_part_dalali_entries(
+        supplier_id=supplier_id,
+    )
+    
+    # Convert to schema
+    result = []
+    for entry in entries:
+        schema = PartDalaliSchema.model_validate(entry)
+        result.append(schema.model_dump())
+    
+    return jsonify({
+        "items": result,
+        "total": total,
+    })
