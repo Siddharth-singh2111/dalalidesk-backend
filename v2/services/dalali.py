@@ -17,6 +17,7 @@ class DalaliService:
         Create a new dalali entry with associated records
         Returns: (success, dalali_entry or error_message)
         """
+        breakpoint()
         try:
             # Start a transaction
             # Extract and format the other_details from less_details
@@ -36,7 +37,7 @@ class DalaliService:
                 type=data.get("type"),  # Validation already done in schema
                 status=data.get("status"),  # Validation already done in schema
                 reference_page_number=data.get("reference_page_number"),
-                tally_billy_no=data.get("tally_bill_number"),
+                tally_bill_no=data.get("tally_bill_no"),
                 created_by=data.get("created_by")
             )
             print("after dalali_entry")
@@ -112,6 +113,7 @@ class DalaliService:
                     tds_detail = TdsDetails(
                         dalali_id=dalali_entry.id,
                         amount=tds_data.get("amount"),
+                        notes=tds_data.get("notes"),
                         checked=tds_data.get("checked"),
                         created_by=data.get("created_by")
                     )
@@ -168,8 +170,8 @@ class DalaliService:
                 dalali_entry.status = data.get("status")  # Validation already done in schema
             if data.get("reference_page_number") is not None:
                 dalali_entry.reference_page_number = data.get("reference_page_number")
-            if data.get("tally_bill_number") is not None:
-                dalali_entry.tally_billy_no = data.get("tally_bill_number")
+            if data.get("tally_bill_no") is not None:
+                dalali_entry.tally_bill_no = data.get("tally_bill_no")
             
             dalali_entry.last_updated_by = data.get("last_updated_by")
             dalali_entry.last_updated = datetime.now()
@@ -195,7 +197,7 @@ class DalaliService:
             # Update part dalali entries
             if data.get("part_dalali") is not None:
                 # Remove existing part dalali entries
-                for part in dalali_entry.part_dalalis:
+                for part in dalali_entry.part_dalali:
                     db.session.delete(part)
                 
                 # Add new part dalali entries
@@ -396,10 +398,20 @@ class DalaliService:
             # Delete all dalali bills
             for bill in dalali_entry.dalali_bills:
                 db.session.delete(bill)
+
+            if dalali_entry.type == "Part":
+                part_dalail_I_create = db.query(PartDalali).filter(
+                    PartDalali.dalali_id == dalali_entry.id
+                ).first()
+                if part_dalail_I_create.used == False:
+                    db.session.delete(part_dalail_I_create)
+                else: 
+                    DataError(f"Cannot delete dalali entry with used part dalali: {part_dalail_I_create.id}")
                 
             # Delete all part dalalis
-            for part in dalali_entry.part_dalalis:
-                db.session.delete(part)
+            for part in dalali_entry.part_dalali:
+                part.used = False
+                part.use_dalali_id = None
                 
             # Delete all sender payments
             for payment in dalali_entry.dalali_sender_payments:

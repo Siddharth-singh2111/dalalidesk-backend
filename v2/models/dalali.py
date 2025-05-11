@@ -24,7 +24,7 @@ from .firms_and_banks import Bank, Firm, FirmBank
 #   type VARCHAR(10) NOT NULL CHECK (type IN ('Full','Part')),
 #   status VARCHAR(10) NOT NULL CHECK (status IN ('Approved','Pending','Cancelled')),
 #   reference_page_number INTEGER,
-#   tally_billy_no VARCHAR(50),
+#   tally_bill_no VARCHAR(50),
 # );
 
 class DalaliEntry(db.Model):
@@ -44,7 +44,7 @@ class DalaliEntry(db.Model):
     type: Mapped[str] = MappedColumn(db.String(10), nullable=False)
     status: Mapped[str] = MappedColumn(db.String(10), nullable=False)
     reference_page_number: Mapped[Optional[int]] = MappedColumn(db.Integer, nullable=True)
-    tally_billy_no: Mapped[Optional[str]] = MappedColumn(db.String(50), nullable=True)
+    tally_bill_no: Mapped[Optional[str]] = MappedColumn(db.String(50), nullable=True)
     created_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
     last_updated_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)

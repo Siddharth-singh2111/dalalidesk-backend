@@ -8,7 +8,7 @@ import json
 class TdsDetailSchema(BaseSchema):
     id: Optional[int] = None
     amount: float
-    note: Optional[str] = None
+    notes: Optional[str] = None
     checked: Optional[bool] = False
     dalali_id: Optional[int] = None
 
@@ -91,7 +91,7 @@ class DalaliEntrySchema(BaseSchema):
     type: str  # "Full" or "Part" (1 or 2)
     status: str  # "Pending", "Approved", "Cancelled" (1, 2, 3)
     reference_page_number: Optional[int] = None
-    tally_bill_number: Optional[str] = None
+    tally_bill_no: Optional[str] = None
     
     # Relationships
     dalali_bills: List[DalaliBillSchema] = []
@@ -159,7 +159,7 @@ class DalaliReceiverPaymentCreate(BaseSchema):
 
 class TdsDetailCreate(BaseSchema):
     amount: float
-    note: Optional[str] = None
+    notes: Optional[str] = None
 
 class DalaliEntryCreate(BaseSchema):
     dalali_number: int
@@ -175,7 +175,7 @@ class DalaliEntryCreate(BaseSchema):
     type: Union[str, int]  # "Full" or "Part" (1 or 2)
     status: Union[str, int]  # "Pending", "Approved", "Cancelled" (1, 2, 3)
     reference_page_number: Optional[int] = None
-    tally_bill_number: Optional[str] = None
+    tally_bill_no: Optional[str] = None
     
     # Relationships with specific schemas
     dalali_bills: Optional[List[DalaliBillCreate]] = None
@@ -258,7 +258,7 @@ class DalaliEntryUpdate(BaseSchema):
     type: Optional[Union[str, int]] = None  # "Full" or "Part" (1 or 2)
     status: Optional[Union[str, int]] = None  # "Pending", "Approved", "Cancelled" (1, 2, 3)
     reference_page_number: Optional[int] = None
-    tally_bill_number: Optional[str] = None
+    tally_bill_no: Optional[str] = None
     
     # Relationships with specific schemas
     dalali_bills: Optional[List[DalaliBillUpdate]] = None
