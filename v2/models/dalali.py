@@ -53,7 +53,8 @@ class DalaliEntry(db.Model):
     # Relationships
     supplier = relationship("Supplier", back_populates="dalali_entries")
     dalali_bills = relationship("DalaliBills", back_populates="dalali_entry", cascade="all, delete-orphan")
-    part_dalalis = relationship("PartDalali", foreign_keys="PartDalali.dalali_id", back_populates="dalali_entry", cascade="all, delete-orphan")
+    # This represents other dalali entries that were used by this dalali entry
+    part_dalali = relationship("PartDalali", foreign_keys="PartDalali.use_dalali_id", back_populates="use_dalali", cascade="all, delete-orphan")
     dalali_sender_payments = relationship("DalaliSenderPayments", back_populates="dalali_entry", cascade="all, delete-orphan")
     dalali_receiver_payments = relationship("DalaliReceiverPayments", back_populates="dalali_entry", cascade="all, delete-orphan")
     tds_details = relationship("TdsDetails", back_populates="dalali_entry", cascade="all, delete-orphan")
@@ -129,6 +130,33 @@ class DalaliBills(db.Model):
         if self.memo_entry:
             return self.memo_entry.memo_number
         return None
+    
+    @hybrid_property
+    def commision(self) -> Optional[float]:
+        """
+        Return the amount from the related MemoEntry.
+        """
+        if self.memo_entry:
+            return self.memo_entry.commision
+        return None
+    
+    @hybrid_property
+    def less_gst_percent(self) -> Optional[float]:
+        """
+        Return the less_gst_percent from the related MemoEntry.
+        """
+        if self.memo_entry:
+            return self.memo_entry.less_gst_percentage
+        return None
+    
+    @hybrid_property
+    def register_date(self) -> Optional[datetime]:
+        """
+        Return the register_date from the related MemoEntry.
+        """
+        if self.memo_entry:
+            return self.memo_entry.register_date
+        return None
 
 
 # -- part_dalali
@@ -154,8 +182,10 @@ class PartDalali(db.Model):
     last_updated: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)
 
     # Relationships
-    dalali_entry = relationship("DalaliEntry", foreign_keys=[dalali_id], back_populates="part_dalalis")
-    use_dalali = relationship("DalaliEntry", foreign_keys=[use_dalali_id])
+    # dalali_entry is the original dalali entry that might be used by another dalali
+    dalali_entry = relationship("DalaliEntry", foreign_keys=[dalali_id])
+    # use_dalali is the dalali entry that uses this part dalali
+    use_dalali = relationship("DalaliEntry", foreign_keys=[use_dalali_id], back_populates="part_dalali")
     supplier = relationship("Supplier")
     creator = relationship(
         "Users",
@@ -165,6 +195,23 @@ class PartDalali(db.Model):
         "Users",
         foreign_keys=[last_updated_by],
     )
+
+    @hybrid_property
+    def dalali_number(self) -> Optional[int]:
+        """
+        Return the dalali number from the related DalaliEntry.
+        """
+        if self.dalali_entry:
+            return self.dalali_entry.dalali_number
+        return None
+    @hybrid_property
+    def dalali_amount(self) -> Optional[float]:
+        """
+        Return the dalali amount from the related DalaliEntry.
+        """
+        if self.dalali_entry:
+            return self.dalali_entry.amount
+        return None
 
 
 # -- dalali_sender_payments

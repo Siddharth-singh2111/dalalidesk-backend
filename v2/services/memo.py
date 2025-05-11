@@ -63,6 +63,8 @@ class MemoService:
         # DalaliBills.dalali_id, DalaliEntry.id, and DalaliEntry.status for optimal performance.
         pending_memos = MemoEntry.query.filter(
             MemoEntry.supplier_id == supplier_id,
+            MemoEntry.commision != None,
+            MemoEntry.less_gst_percentage != None,
             not_(subquery)
         ).all()
 

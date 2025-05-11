@@ -15,6 +15,8 @@ class MemoEntrySchema(BaseSchema):
     register_date: datetime
     created_by: Optional[int] = None
     last_updated_by: Optional[int] = None
+    commision: Optional[float] = None
+    less_gst_percentage: Optional[float] = None
     
     # Relationships
     memo_bills: List[MemoBillSchema] = []

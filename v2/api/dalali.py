@@ -14,10 +14,31 @@ import json
 dalali_bp = Blueprint("dalali", __name__, url_prefix="/api/dalali")
 
 @jwt_required()
+@dalali_bp.route("/<int:dalali_id>", methods=["DELETE"])
+def delete_dalali(dalali_id):
+    """Delete a dalali entry"""
+    try:
+        # Get current user ID for deletion tracking
+        current_user_id = get_current_user_id()
+        
+        # Delete entry using service
+        success, message = DalaliService.delete_dalali_entry(dalali_id, current_user_id)
+        
+        if not success:
+            return jsonify({"error": message}), 404 if "not found" in message.lower() else 400
+        
+        # Return success response
+        return jsonify({"message": message}), 200
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@jwt_required()
 @dalali_bp.route("/<int:dalali_id>", methods=["GET"])
 def get_dalali(dalali_id):
     """Get a specific dalali entry by ID"""
     entry = DalaliService.get_dalali_entry(dalali_id)
+
     if not entry:
         abort(404, description="Dalali entry not found")
     
@@ -100,7 +121,6 @@ def create_dalali():
             return jsonify({"error": result}), 400
         
         print("after create dalali entry")
-        breakpoint()
         # Return created entry
         entry_schema = DalaliEntrySchema.model_validate(result)
         

@@ -52,11 +52,24 @@ class PartDalaliSchema(BaseSchema):
     supplier_id: int
     used: bool
     use_dalali_id: Optional[int] = None
+    dalali_number: Optional[int] = None
+    dalali_amount: Optional[float] = None
 
 class DalaliBillSchema(BaseSchema):
     id: int
     memo_id: int
     memo_number: Optional[int] = None
+    commision: Optional[float] = None
+    less_gst_percentage: Optional[float] = None
+    register_date: Optional[str] = None
+
+    @field_validator("register_date", mode="before")
+    @classmethod
+    def parse_register_date(cls, v):
+        # return in yyyy-mm-dd format
+        if isinstance(v, datetime) or isinstance(v, date):
+            return v.strftime("%d/%m/%Y")
+        return v
 
 class LessDetailsSchema(BaseSchema):
     other_details: List[str] = []

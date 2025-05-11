@@ -53,13 +53,24 @@ class DalaliService:
                     )
                     db.session.add(dalali_bill)
             
+            if data.get("type") == "Part":
+                part_dalali = PartDalali(
+                    dalali_id=dalali_entry.id,
+                    supplier_id=data.get("supplier_id"),
+                    used=False,
+                    use_dalali_id=None,
+                    created_by=data.get("created_by"),
+                    last_updated_by=data.get("created_by")
+                )
+                db.session.add(part_dalali)
+
             print("after dalali_bills")
             # Add part dalali entries
             if data.get("part_dalali"):
                 for part_data in data["part_dalali"]:
                     part_dalali = db.session.query(PartDalali).filter_by(id=part_data.get("id")).first()
                     if part_dalali:
-                        part_dalali.used = part_data.get("used")
+                        part_dalali.used = True
                         part_dalali.use_dalali_id = dalali_entry.id
                         part_dalali.last_updated_by = data.get("created_by")
                         part_dalali.last_updated = datetime.now()
@@ -270,7 +281,7 @@ class DalaliService:
         return (
             DalaliEntry.query
             .options(db.selectinload(DalaliEntry.dalali_bills))
-            .options(db.selectinload(DalaliEntry.part_dalalis))
+            .options(db.selectinload(DalaliEntry.part_dalali))
             .options(db.selectinload(DalaliEntry.dalali_sender_payments))
             .options(db.selectinload(DalaliEntry.dalali_receiver_payments))
             .options(db.selectinload(DalaliEntry.tds_details))
@@ -310,7 +321,7 @@ class DalaliService:
         # Apply pagination
         query = (
             query
-            .order_by(DalaliEntry.register_date.desc())
+            .order_by(DalaliEntry.created_at.desc())
             .offset((page - 1) * per_page)
             .limit(per_page)
         )
@@ -319,7 +330,7 @@ class DalaliService:
         query = (
             query
             .options(db.selectinload(DalaliEntry.dalali_bills))
-            .options(db.selectinload(DalaliEntry.part_dalalis))
+            .options(db.selectinload(DalaliEntry.part_dalali))
             .options(db.selectinload(DalaliEntry.dalali_sender_payments))
             .options(db.selectinload(DalaliEntry.dalali_receiver_payments))
             .options(db.selectinload(DalaliEntry.tds_details))
@@ -365,3 +376,49 @@ class DalaliService:
         )
         
         return query.all(), total
+        
+    @staticmethod
+    def delete_dalali_entry(dalali_id: int, deleted_by: int) -> Tuple[bool, str]:
+        """
+        Delete a dalali entry and all its associated records
+        Returns: (success, success/error message)
+        """
+        try:
+            # Start a transaction
+            dalali_entry = DalaliEntry.query.get(dalali_id)
+            if not dalali_entry:
+                return False, "Dalali entry not found"
+            
+            # Delete all related records
+            # All these should cascade automatically based on foreign key constraints,
+            # but we'll be explicit to ensure proper cleanup
+            
+            # Delete all dalali bills
+            for bill in dalali_entry.dalali_bills:
+                db.session.delete(bill)
+                
+            # Delete all part dalalis
+            for part in dalali_entry.part_dalalis:
+                db.session.delete(part)
+                
+            # Delete all sender payments
+            for payment in dalali_entry.dalali_sender_payments:
+                db.session.delete(payment)
+                
+            # Delete all receiver payments
+            for payment in dalali_entry.dalali_receiver_payments:
+                db.session.delete(payment)
+                
+            # Delete all TDS details
+            for tds in dalali_entry.tds_details:
+                db.session.delete(tds)
+                
+            # Delete the dalali entry itself
+            db.session.delete(dalali_entry)
+            
+            # Commit the transaction
+            db.session.commit()
+            return True, "Dalali entry deleted successfully"
+        except Exception as e:
+            db.session.rollback()
+            return False, f"Error deleting dalali entry: {str(e)}"

@@ -12,6 +12,8 @@ class MemoEntry(db.Model):
     register_date = db.Column(db.DateTime, default=datetime.now)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     last_updated_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    commision = db.Column(db.Integer, nullable=True)
+    less_gst_percentage = db.Column(db.Integer, nullable=True)
 
     # Relationships with cascade delete to related objects
     memo_bills = db.relationship(
