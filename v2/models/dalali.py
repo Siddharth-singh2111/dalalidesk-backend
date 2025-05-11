@@ -31,7 +31,7 @@ class DalaliEntry(db.Model):
     __tablename__ = "dalali_entry"
 
     id: Mapped[int] = MappedColumn(db.Integer, primary_key=True)
-    dalali_number: Mapped[int] = MappedColumn(db.Integer, nullable=False)
+    dalali_number: Mapped[int] = MappedColumn(db.Integer, nullable=False, unique=True)
     supplier_id: Mapped[int] = MappedColumn(db.Integer, db.ForeignKey("supplier.id"), nullable=False)
     register_date: Mapped[datetime] = MappedColumn(db.DateTime, nullable=False)
     amount: Mapped[int] = MappedColumn(db.Integer, nullable=False)
@@ -88,6 +88,7 @@ class DalaliEntry(db.Model):
     __table_args__ = (
         db.CheckConstraint("type IN ('Full', 'Part')", name="check_dalali_type"),
         db.CheckConstraint("status IN ('Approved', 'Pending', 'Cancelled')", name="check_dalali_status"),
+        db.UniqueConstraint('dalali_number', name='uq_dalali_number'),
     )
 
 

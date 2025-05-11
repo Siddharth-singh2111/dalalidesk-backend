@@ -17,7 +17,6 @@ class DalaliService:
         Create a new dalali entry with associated records
         Returns: (success, dalali_entry or error_message)
         """
-        breakpoint()
         try:
             # Start a transaction
             # Extract and format the other_details from less_details
@@ -176,46 +175,10 @@ class DalaliService:
             dalali_entry.last_updated_by = data.get("last_updated_by")
             dalali_entry.last_updated = datetime.now()
             
-            # Update related entities - remove and recreate approach
-            
-            # Update dalali bills
-            if data.get("dalali_bills") is not None:
-                # Remove existing bills
-                for bill in dalali_entry.dalali_bills:
-                    db.session.delete(bill)
-                
-                # Add new bills
-                for bill_data in data["dalali_bills"]:
-                    dalali_bill = DalaliBills(
-                        dalali_id=dalali_entry.id,
-                        memo_id=bill_data.get("id"),  # Using id directly from our schema
-                        created_by=data.get("last_updated_by"),
-                        last_updated_by=data.get("last_updated_by")
-                    )
-                    db.session.add(dalali_bill)
-            
-            # Update part dalali entries
-            if data.get("part_dalali") is not None:
-                # Remove existing part dalali entries
-                for part in dalali_entry.part_dalali:
-                    db.session.delete(part)
-                
-                # Add new part dalali entries
-                for part_data in data["part_dalali"]:
-                    part_dalali = PartDalali(
-                        dalali_id=dalali_entry.id,
-                        supplier_id=part_data.get("supplier_id"),
-                        used=part_data.get("used"),
-                        use_dalali_id=part_data.get("use_dalali_id"),
-                        created_by=data.get("last_updated_by"),
-                        last_updated_by=data.get("last_updated_by")
-                    )
-                    db.session.add(part_dalali)
-            
             # Update sender payments
             if data.get("dalali_sender_payments") is not None:
                 # Remove existing sender payments
-                for payment in dalali_entry.sender_payments:
+                for payment in dalali_entry.dalali_sender_payments:
                     db.session.delete(payment)
                 
                 # Add new sender payments
@@ -233,7 +196,7 @@ class DalaliService:
             # Update receiver payments
             if data.get("dalali_receiver_payments") is not None:
                 # Remove existing receiver payments
-                for payment in dalali_entry.receiver_payments:
+                for payment in dalali_entry.dalali_receiver_payments:
                     db.session.delete(payment)
                 
                 # Add new receiver payments
@@ -261,7 +224,7 @@ class DalaliService:
                     tds_detail = TdsDetails(
                         dalali_id=dalali_entry.id,
                         amount=tds_data.get("amount"),
-                        notes=tds_data.get("note"),
+                        notes=tds_data.get("notes"),
                         checked=tds_data.get("checked"),
                         created_by=data.get("last_updated_by"),
                         last_updated_by=data.get("last_updated_by")
@@ -400,9 +363,9 @@ class DalaliService:
                 db.session.delete(bill)
 
             if dalali_entry.type == "Part":
-                part_dalail_I_create = db.query(PartDalali).filter(
-                    PartDalali.dalali_id == dalali_entry.id
-                ).first()
+                part_dalail_I_create = PartDalali.query.filter_by(
+                    dalali_id=dalali_entry.id).first()
+                
                 if part_dalail_I_create.used == False:
                     db.session.delete(part_dalail_I_create)
                 else: 

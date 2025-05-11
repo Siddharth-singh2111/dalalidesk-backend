@@ -148,14 +148,32 @@ class SettlementPaymentCreate(BaseSchema):
 class DalaliSenderPaymentCreate(BaseSchema):
     bank_id: int
     cheque_number: str
-    amount: str
+    amount: int
+
+    @field_validator("amount", mode="before")
+    @classmethod
+    def parse_amount(cls, v):
+        if isinstance(v, str):
+            return int(float(v))
+        if isinstance(v, float):
+            return int(v)
+        return v
 
 class DalaliReceiverPaymentCreate(BaseSchema):
     firm_id: int
     firm_bank_id: int
     cheque_number: str
-    amount: str
+    amount: int
     received_date: datetime
+
+    @field_validator("amount", mode="before")
+    @classmethod
+    def parse_amount(cls, v):
+        if isinstance(v, str):
+            return int(float(v))
+        if isinstance(v, float):
+            return int(v)
+        return v
 
 class TdsDetailCreate(BaseSchema):
     amount: float
@@ -228,21 +246,21 @@ class DalaliSenderPaymentUpdate(BaseSchema):
     id: Optional[int] = None  # Optional for identifying existing record
     bank_id: int
     cheque_number: str
-    amount: str
+    amount: float
 
 class DalaliReceiverPaymentUpdate(BaseSchema):
     id: Optional[int] = None  # Optional for identifying existing record
     firm_id: int
     firm_bank_id: int
     cheque_number: str
-    amount: str
+    amount: float
     received_date: datetime
 
 class TdsDetailUpdate(BaseSchema):
     id: Optional[int] = None  # Optional for identifying existing record
     amount: float
     note: Optional[str] = None
-    checked: bool = False
+    checked: Optional[bool] = False
 
 class DalaliEntryUpdate(BaseSchema):
     dalali_number: Optional[int] = None
