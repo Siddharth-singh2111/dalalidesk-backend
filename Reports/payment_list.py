@@ -53,7 +53,12 @@ class PaymentList(table.HeaderSubheaderTable):
             if 'part_amt' in self.total_rows_columns:
                 total_rows.append(self._total_row_dict('Total (=)', totals['part_amt']['total'], 'part_amt', before_data))
             if 'bill_amt' in self.total_rows_columns:
-                total_rows.extend([self._total_row_dict('<60 days (+)', totals['bill_amt']['under_sixty'], 'bill_amt', before_data), self._total_row_dict('60-120 days (+)', totals['bill_amt']['above_sixty'], 'bill_amt', before_data), self._total_row_dict('>120 days (+)', totals['bill_amt']['above_one_twenty'], 'bill_amt', before_data), self._total_row_dict('Subtotal (=)', totals['bill_amt']['total'], 'bill_amt', before_data)])
+                total_rows.extend([
+                                    self._total_row_dict('Subtotal (=)', totals['bill_amt']['total'], 'bill_amt', before_data),
+                                   self._total_row_dict('>120 days (+)', totals['bill_amt']['above_one_twenty'], 'bill_amt', before_data), 
+                                   self._total_row_dict('60-120 days (+)', totals['bill_amt']['above_sixty'], 'bill_amt', before_data), 
+                                   self._total_row_dict('<60 days (+)', totals['bill_amt']['under_sixty'], 'bill_amt', before_data)
+                                  ])
                 if 'part_amt' in self.total_rows_columns:
                     pending_amt = totals['bill_amt']['total'] - totals['part_amt']['total']
                     total_rows.extend([self._total_row_dict('Part (-)', totals['part_amt']['total'], 'bill_amt', before_data, negative=True), self._total_row_dict('Pending (=)', pending_amt, 'bill_amt', before_data)])
