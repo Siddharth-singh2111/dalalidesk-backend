@@ -11,6 +11,15 @@ from ..models.memo import MemoEntry
 from ..extensions import db
 
 class DalaliService:
+
+    @staticmethod
+    def get_next_dalali_number() -> int:
+        """
+        Get the next dalali number
+        """
+        dalali_entry = DalaliEntry.query.order_by(DalaliEntry.dalali_number.desc()).first()
+        return dalali_entry.dalali_number + 1 if dalali_entry else 1
+
     @staticmethod
     def create_dalali_entry(data: Dict[str, Any]) -> Tuple[bool, Union[DalaliEntry, str]]:
         """
@@ -354,6 +363,9 @@ class DalaliService:
             if not dalali_entry:
                 return False, "Dalali entry not found"
             
+            if dalali_entry.status == "Approved":
+                return False, "Cannot delete dalali entry with status 'Approved'"
+            
             # Delete all related records
             # All these should cascade automatically based on foreign key constraints,
             # but we'll be explicit to ensure proper cleanup
@@ -397,3 +409,5 @@ class DalaliService:
         except Exception as e:
             db.session.rollback()
             return False, f"Error deleting dalali entry: {str(e)}"
+        
+

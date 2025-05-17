@@ -223,6 +223,12 @@ class MemoEntry(Entry):
             self.commision = 0
             self.less_gst_percentage = None
             return
+
+        if self.mode == 'Dalali Settlement':
+            self.less_gst = 0
+            self.commision = self.amount
+            self.less_gst_percentage = 0
+            return
         
         # If gst_percentage is not provided, get the supplier's default
         if gst_percentage is None:
@@ -279,6 +285,7 @@ class MemoEntry(Entry):
         # (will be 0 if not applicable)
         if not self.less_gst and not self.commision:
             self.calculate_less_gst_and_commission()
+        
 
     @classmethod
     def from_dict(cls, data: Dict, parse_memo_bills: bool=False) -> MemoEntry:

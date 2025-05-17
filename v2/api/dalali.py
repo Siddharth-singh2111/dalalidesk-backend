@@ -1,7 +1,10 @@
 from flask import Blueprint, jsonify, request, abort
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
+from flask_jwt_extended import JWTManager, get_jwt
+from flask_jwt_extended import create_refresh_token, verify_jwt_in_request
 
 from hca_backend.v2.core.context import get_current_user_id
+
 from ..schemas.dalali import (
     DalaliEntrySchema, DalaliEntryCreate, DalaliEntryUpdate, PartDalaliSchema
 )
@@ -13,8 +16,8 @@ import json
 
 dalali_bp = Blueprint("dalali", __name__, url_prefix="/api/dalali")
 
-@jwt_required()
 @dalali_bp.route("/<int:dalali_id>", methods=["DELETE"])
+@jwt_required()
 def delete_dalali(dalali_id):
     """Delete a dalali entry"""
     try:
@@ -25,16 +28,22 @@ def delete_dalali(dalali_id):
         success, message = DalaliService.delete_dalali_entry(dalali_id, current_user_id)
         
         if not success:
-            return jsonify({"error": message}), 404 if "not found" in message.lower() else 400
+            return jsonify({
+                'status': 'error',
+                'message': message
+            }), 404 if "not found" in message.lower() else 400
         
         # Return success response
         return jsonify({"message": message}), 200
     
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
-@jwt_required()
 @dalali_bp.route("/<int:dalali_id>", methods=["GET"])
+@jwt_required()
 def get_dalali(dalali_id):
     """Get a specific dalali entry by ID"""
     entry = DalaliService.get_dalali_entry(dalali_id)
@@ -57,10 +66,11 @@ def get_dalali(dalali_id):
     
     return jsonify(schema.model_dump())
 
-@jwt_required()
 @dalali_bp.route("/", methods=["GET"])
+@jwt_required()
 def list_dalali():
     """List dalali entries with optional filters"""
+
     # Get filter parameters
     supplier_id = request.args.get("supplier_id", type=int)
     status = request.args.get("status")
@@ -103,8 +113,8 @@ def list_dalali():
         "per_page": per_page
     })
 
-@jwt_required()
 @dalali_bp.route("/", methods=["POST"])
+@jwt_required()
 def create_dalali():
     """Create a new dalali entry"""
     try:
@@ -141,8 +151,8 @@ def create_dalali():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@jwt_required()
 @dalali_bp.route("/<int:dalali_id>", methods=["PUT"])
+@jwt_required()
 def update_dalali(dalali_id):
     """Update an existing dalali entry"""
     try:
@@ -179,8 +189,8 @@ def update_dalali(dalali_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@jwt_required()
 @dalali_bp.route("/unused-part-dalali/<int:supplier_id>", methods=["GET"])
+@jwt_required()
 def list_unused_part_dalali(supplier_id:int):
     """List unused part_dalali entries for a specific supplier"""
     
@@ -199,3 +209,10 @@ def list_unused_part_dalali(supplier_id:int):
         "items": result,
         "total": total,
     })
+
+@dalali_bp.route("/get_next_available_dalali_number", methods=["GET"])
+@jwt_required()
+def get_next_dalali_number():
+    """Get the next dalali number"""
+    dalali_number = DalaliService.get_next_dalali_number()
+    return jsonify({"dalali_number": dalali_number})

@@ -3,6 +3,8 @@ User context utilities for the application.
 This module provides functions to get the current user's ID from various contexts.
 """
 from flask import g, has_request_context, current_app
+from flask_jwt_extended import get_jwt_identity, get_jwt, verify_jwt_in_request
+
 
 def get_current_user_id():
     """

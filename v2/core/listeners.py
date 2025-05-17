@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from ..extensions import db
 from ..models.audit import AuditLog
 from ..core.context import get_current_user_id
+import datetime
 
 
 def audit_before_flush(session: Session, flush_context, instances):
@@ -41,23 +42,35 @@ def audit_after_flush(session: Session, flush_context):
         
     # Handle new objects (INSERT)
     for obj in getattr(session, '_objects_to_audit_new', []):
+        changes = {}
+        for c in obj.__table__.columns:
+            val = getattr(obj, c.name)
+            if isinstance(val, datetime.datetime):
+                changes[c.name] = val.isoformat()
+            else:
+                changes[c.name] = val
         session.add(AuditLog(
             user_id    = user,
             table_name = obj.__tablename__,
             record_id  = obj.id,  # Now this will have a value
             action     = "INSERT",
-            changes    = {c.name: getattr(obj, c.name) 
-                         for c in obj.__table__.columns}
+            changes    = changes
         ))
     
     # Handle dirty objects (UPDATE)
     for obj, diffs in getattr(session, '_objects_to_audit_dirty', []):
+        serialized_diffs = {}
+        for key, value in diffs.items():
+            if isinstance(value, datetime.datetime):
+                serialized_diffs[key] = value.isoformat()
+            else:
+                serialized_diffs[key] = value
         session.add(AuditLog(
             user_id    = user,
             table_name = obj.__tablename__,
             record_id  = obj.id,
             action     = "UPDATE",
-            changes    = diffs
+            changes    = serialized_diffs
         ))
     
     # Handle deleted objects (DELETE)

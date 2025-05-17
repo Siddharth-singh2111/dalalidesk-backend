@@ -61,7 +61,10 @@ class DalaliBillSchema(BaseSchema):
     memo_number: Optional[int] = None
     commision: Optional[float] = None
     less_gst_percentage: Optional[float] = None
+    less_gst: Optional[float] = None
     register_date: Optional[str] = None
+    party_name: Optional[str] = None
+    memo_amount: Optional[float] = None
 
     @field_validator("register_date", mode="before")
     @classmethod
@@ -259,7 +262,7 @@ class DalaliReceiverPaymentUpdate(BaseSchema):
 class TdsDetailUpdate(BaseSchema):
     id: Optional[int] = None  # Optional for identifying existing record
     amount: float
-    note: Optional[str] = None
+    notes: Optional[str] = None
     checked: Optional[bool] = False
 
 class DalaliEntryUpdate(BaseSchema):

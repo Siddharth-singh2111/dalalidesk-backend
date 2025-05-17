@@ -36,3 +36,13 @@ class Supplier(db.Model):
     __table_args__ = (
         db.CheckConstraint("city IN ('Bangalore', 'Jaipur', 'Kolkata', 'Surat', 'Varanasi', 'Belgaum', 'Mumbai', 'Delhi', 'Mau')", name="check_supplier_city"),
     )
+
+
+class Party(db.Model):
+    __tablename__ = "party"
+
+    id: Mapped[int] = MappedColumn(db.Integer, primary_key=True)
+    name: Mapped[str] = MappedColumn(db.String(100), nullable=False, unique=True)
+
+    memo_entries = relationship("MemoEntry", back_populates="party")
+    

@@ -8,12 +8,14 @@ class MemoEntry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     memo_number = db.Column(db.Integer, nullable=False)
     supplier_id = db.Column(db.Integer, db.ForeignKey("supplier.id"), nullable=False)
+    party_id = db.Column(db.Integer, db.ForeignKey("party.id"), nullable=False)
     amount = db.Column(db.Integer, nullable=False)
     register_date = db.Column(db.DateTime, default=datetime.now)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     last_updated_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     commision = db.Column(db.Integer, nullable=True)
     less_gst_percentage = db.Column(db.Integer, nullable=True)
+    less_gst = db.Column(db.Integer, nullable=True)
 
     # Relationships with cascade delete to related objects
     memo_bills = db.relationship(
@@ -31,6 +33,11 @@ class MemoEntry(db.Model):
 
     supplier = db.relationship(
         "Supplier",
+        back_populates="memo_entries",
+    )
+
+    party = db.relationship(
+        "Party",
         back_populates="memo_entries",
     )
 

@@ -4,7 +4,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import json
-from .supplier import Supplier
+from .supplier_and_party import Supplier
 from .firms_and_banks import Bank, Firm, FirmBank
 
 
@@ -124,6 +124,24 @@ class DalaliBills(db.Model):
     )
 
     @hybrid_property
+    def memo_amount(self) -> Optional[float]:
+        """
+        Return the amount from the related MemoEntry.
+        """
+        if self.memo_entry:
+            return self.memo_entry.amount
+        return None
+
+    @hybrid_property
+    def party_name(self) -> Optional[str]:
+        """
+        Return the party name from the related Party.
+        """
+        if self.memo_entry:
+            return self.memo_entry.party.name
+        return None
+        
+    @hybrid_property
     def memo_number(self) -> Optional[int]:
         """
         Return the memo number from the related MemoEntry.
@@ -142,13 +160,21 @@ class DalaliBills(db.Model):
         return None
     
     @hybrid_property
-    def less_gst_percent(self) -> Optional[float]:
+    def less_gst_percentage(self) -> Optional[float]:
         """
         Return the less_gst_percent from the related MemoEntry.
         """
         if self.memo_entry:
             return self.memo_entry.less_gst_percentage
         return None
+    
+    @hybrid_property
+    def less_gst(self) -> Optional[float]:
+        """
+        Return the less_gst from the related MemoEntry.
+        """
+        if self.memo_entry:
+            return self.memo_entry.less_gst
     
     @hybrid_property
     def register_date(self) -> Optional[datetime]:
