@@ -5,7 +5,7 @@ ALTER TABLE supplier ADD COLUMN IF NOT EXISTS gst_default DECIMAL DEFAULT 5.0;
 -- COMMENT ON COLUMN supplier.gst_default IS 'Default GST percentage value for the supplier (5%, 12%, or other values like 4.762)';
 
 -- Add new columns to memo_entry table
-ALTER TABLE memo_entry ADD COLUMN IF NOT EXISTS parent_dalali_id INT;
+ALTER TABLE memo_entry ADD COLUMN IF NOT EXISTS parent_dalali_id INT REFERENCES dalali_entry(id);
 ALTER TABLE memo_entry ADD COLUMN IF NOT EXISTS parent_memo_id INT REFERENCES memo_entry(id);
 ALTER TABLE memo_entry ADD COLUMN IF NOT EXISTS memo_type VARCHAR(20) CHECK (memo_type IN ('Full', 'Part', 'Payment Settlement', 'Dalali Settlement'));
 
@@ -19,3 +19,6 @@ ALTER TABLE memo_entry ADD COLUMN IF NOT EXISTS commision INT DEFAULT 0;
 -- COMMENT ON COLUMN memo_entry.memo_type IS 'Type of memo: Full, Part, Payment Settlement, Dalali Settlement';
 -- COMMENT ON COLUMN memo_entry.less_gst IS 'Amount with GST removed';
 -- COMMENT ON COLUMN memo_entry.commision IS 'Commission amount calculated from less_gst';
+
+
+

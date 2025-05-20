@@ -43,5 +43,7 @@ VALUES
 ('admin', 'firm', TRUE, TRUE, TRUE, TRUE),
 ('admin', 'firm_bank', TRUE, TRUE, TRUE, TRUE),
 ('user', 'firm', FALSE, TRUE, FALSE, FALSE),
-('user', 'firm_bank', FALSE, TRUE, FALSE, FALSE)
+('user', 'firm_bank', FALSE, TRUE, FALSE, FALSE),
+('admin', 'dalali_entry', TRUE, TRUE, TRUE, TRUE),
+('user', 'dalali_entry', FALSE, TRUE, FALSE, FALSE)
 ON CONFLICT (role, resource) DO NOTHING;

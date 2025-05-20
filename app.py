@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 from datetime import timedelta
 
@@ -12,6 +12,9 @@ import pytz
 from hca_backend.v2.extensions import db
 from hca_backend.v2.core.listeners import audit_before_flush, audit_after_flush
 from hca_backend.v2.api import memo_bp, dalali_bp, reports_bp
+from Exceptions.custom_exception import DataError as LocalDataError
+from hca_backend.Exceptions import DataError as AppDataError
+
 
 # Import Dalali models
 from hca_backend.v2.models.dalali import (
@@ -35,6 +38,21 @@ load_dotenv()
 
 # Create Flask app
 app = Flask(__name__)
+
+# Register handlers for both versions of the exception
+@app.errorhandler(LocalDataError)
+def handle_local_data_error(e):
+    error = e.dict()
+    if error['status'] == 'error' and 'input_errors' not in error:
+        error['input_errors'] = {}
+    return jsonify(error), 500
+
+@app.errorhandler(AppDataError)
+def handle_app_data_error(e):
+    error = e.dict()
+    if error['status'] == 'error' and 'input_errors' not in error:
+        error['input_errors'] = {}
+    return jsonify(error), 500
 
 # Enable CORS for all routes
 CORS(app)

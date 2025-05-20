@@ -106,6 +106,7 @@ class DalaliEntrySchema(BaseSchema):
 
     # Other fields
     supplier: Optional[SupplierScehma] = None
+    total_part_dalali_amount: Optional[float] = None
     
     created_by: Optional[int] = None
     last_updated_by: Optional[int] = None

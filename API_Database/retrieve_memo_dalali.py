@@ -47,7 +47,7 @@ def calculate_commission(amount: float, gst_percentage: float = 4.762) -> Dict[s
         gst_percentage = 10.7
 
     if gst_percentage != 4.762 and gst_percentage != 10.7:
-        raise DataError("Invalid GST percentage: must be 4.762 or 10.7.")
+        raise DataError("Invalid GST percentage: must be 5% or 12%.")
     # Remove GST from amount
     amount_without_gst = amount - (amount * (gst_percentage / 100))
     amount_without_gst = math.ceil(amount_without_gst)

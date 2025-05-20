@@ -320,15 +320,20 @@ class DalaliService:
         supplier_id: int,
     ) -> Tuple[List[PartDalali], int]:
         """
-        Get unused part_dalali entries for a specific supplier
+        Get unused part_dalali entries for a specific supplier that have approved status
         Returns: (list of entries, total count)
         """
         if not supplier_id:
             return [], 0
             
-        query = PartDalali.query.filter(
-            PartDalali.supplier_id == supplier_id,
-            PartDalali.used == False
+        # Join PartDalali with its related DalaliEntry and filter for approved status
+        query = (PartDalali.query
+            .join(DalaliEntry, PartDalali.dalali_id == DalaliEntry.id)
+            .filter(
+                PartDalali.supplier_id == supplier_id,
+                PartDalali.used == False,
+                DalaliEntry.status == 'Approved'  # Only include approved dalali entries
+            )
         )
         
         # Get total count
@@ -408,6 +413,4 @@ class DalaliService:
             return True, "Dalali entry deleted successfully"
         except Exception as e:
             db.session.rollback()
-            return False, f"Error deleting dalali entry: {str(e)}"
-        
-
+            raise e

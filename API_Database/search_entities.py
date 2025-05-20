@@ -56,7 +56,7 @@ def search_entities(table_name: str, search_query: str, **kwargs):
     search_criteria = None
     for field in fields:
         # Handle numeric fields differently
-        if field in ['bill_number', 'memo_number', 'order_form_number', 'quantity', 'rate', 'amount']:
+        if field in ['bill_number', 'memo_number', 'order_form_number', 'quantity', 'rate', 'amount', 'dalali_number']:
             # Only apply numeric search if the search query is a number
             if search_query.isdigit():
                 criterion = entity_table[field] == int(search_query)

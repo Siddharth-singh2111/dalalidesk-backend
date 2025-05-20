@@ -2,6 +2,8 @@ from flask import Blueprint, jsonify, request, abort
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
 from flask_jwt_extended import JWTManager, get_jwt
 from flask_jwt_extended import create_refresh_token, verify_jwt_in_request
+from sqlalchemy.exc import IntegrityError
+import re
 
 from hca_backend.v2.core.context import get_current_user_id
 
@@ -35,6 +37,13 @@ def delete_dalali(dalali_id):
         
         # Return success response
         return jsonify({"message": message}), 200
+    
+    except IntegrityError as e:
+        # Handle foreign key violations
+        return jsonify({
+            'status': 'error',
+            'message': "Dalai entry has a Dalali Settlemnt Memo Entry",
+        }), 500
     
     except Exception as e:
         return jsonify({
@@ -216,3 +225,59 @@ def get_next_dalali_number():
     """Get the next dalali number"""
     dalali_number = DalaliService.get_next_dalali_number()
     return jsonify({"dalali_number": dalali_number})
+
+@dalali_bp.route("/get_all_dalali_entries_with_names", methods=["GET"])
+@jwt_required()
+def get_all_dalali_entries_with_names():
+    """Get all dalali entries with supplier names"""
+    try:
+        # Get filter parameters
+        supplier_id = request.args.get("supplier_id", type=int)
+        status = request.args.get("status")
+        from_date = request.args.get("from_date")
+        to_date = request.args.get("to_date")
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 20, type=int)
+        
+        # Get entries from service
+        entries, total = DalaliService.list_dalali_entries(
+            supplier_id=supplier_id,
+            status=status,
+            from_date=from_date,
+            to_date=to_date,
+            page=page,
+            per_page=per_page
+        )
+        
+        # Convert to schema
+        result = []
+        for entry in entries:
+            schema = DalaliEntrySchema.model_validate(entry)
+            
+            # Process JSON fields
+            if entry.notes:
+                try:
+                    schema.notes = json.loads(entry.notes)
+                except:
+                    schema.notes = []
+            
+            # Use the hybrid property for less_details
+            schema.less_details = entry.less_details
+            
+            result.append(schema.model_dump())
+        
+        return jsonify({
+            "status": "success",
+            "data": {
+                "result": result,
+                "total": total,
+                "page": page,
+                "per_page": per_page
+            }
+        })
+    
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500

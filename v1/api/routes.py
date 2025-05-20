@@ -19,7 +19,6 @@ from hca_backend.API_Database.audit_log import search_audit_logs, get_audit_hist
 from hca_backend.Entities import RegisterEntry, MemoEntry, OrderForm, Item, ItemEntry
 from hca_backend.Individual import User
 from hca_backend.Reports import report_select, CustomEncoder
-from hca_backend.Exceptions import DataError
 from hca_backend.OCR import parse_register_entry
 from hca_backend.OCR.ocr_queue import OCRQueue
 from hca_backend.background_tasks import _perform_backup
@@ -177,18 +176,6 @@ def create_token():
     """Legacy endpoint for backward compatibility."""
     return login()
 
-@v1_bp.errorhandler(DataError)
-def handle_data_error(e):
-    """Handles exceptions by formatting the error into a JSON response with a 500 status code."""
-    error = e.dict()
-    if error['status'] == 'error' and 'input_errors' not in error:
-        error['input_errors'] = {}
-    print('returning error')
-    print(error)
-    return (jsonify(error), 500)
-
-# User Management Endpoints
-
 @v1_bp.route('/users', methods=['GET'])
 @jwt_required()
 @permission_required('users', 'read')
@@ -269,8 +256,6 @@ def create_user():
             'message': 'User created successfully',
             'user': user.to_dict()
         })
-    except DataError as e:
-        return handle_data_error(e)
     except Exception as e:
         return jsonify({
             'status': 'error',

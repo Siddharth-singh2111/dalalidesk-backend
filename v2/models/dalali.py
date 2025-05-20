@@ -52,12 +52,12 @@ class DalaliEntry(db.Model):
 
     # Relationships
     supplier = relationship("Supplier", back_populates="dalali_entries")
-    dalali_bills = relationship("DalaliBills", back_populates="dalali_entry", cascade="all, delete-orphan")
+    dalali_bills = relationship("DalaliBills", back_populates="dalali_entry")
     # This represents other dalali entries that were used by this dalali entry
-    part_dalali = relationship("PartDalali", foreign_keys="PartDalali.use_dalali_id", back_populates="use_dalali", cascade="all, delete-orphan")
-    dalali_sender_payments = relationship("DalaliSenderPayments", back_populates="dalali_entry", cascade="all, delete-orphan")
-    dalali_receiver_payments = relationship("DalaliReceiverPayments", back_populates="dalali_entry", cascade="all, delete-orphan")
-    tds_details = relationship("TdsDetails", back_populates="dalali_entry", cascade="all, delete-orphan")
+    part_dalali = relationship("PartDalali", foreign_keys="PartDalali.use_dalali_id", back_populates="use_dalali")
+    dalali_sender_payments = relationship("DalaliSenderPayments", back_populates="dalali_entry")
+    dalali_receiver_payments = relationship("DalaliReceiverPayments", back_populates="dalali_entry")
+    tds_details = relationship("TdsDetails", back_populates="dalali_entry")
     creator = relationship(
         "Users",
         foreign_keys=[created_by],
@@ -83,6 +83,13 @@ class DalaliEntry(db.Model):
                 other_details_list = [self.other_details]
             return {"other_details": other_details_list}
         return {"other_details": []}
+    
+    @hybrid_property
+    def total_part_dalali_amount(self) -> Optional[float]:
+        """
+        Return the total amount of part dalali entries.
+        """
+        return sum(part_dalali.dalali_entry.amount for part_dalali in self.part_dalali)
 
     # Check constraint for type and status
     __table_args__ = (

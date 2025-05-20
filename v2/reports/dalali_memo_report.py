@@ -34,7 +34,7 @@ class DalaliMemoReportService:
 
     def _build_memo_query(
         self, 
-        financial_year: Optional[str] = None,
+        financial_year: Optional[Union[str, List[str]]] = None,
         supplier_id: Optional[int] = None,
         party_id: Optional[int] = None,
         status: Optional[str] = None,
@@ -46,7 +46,8 @@ class DalaliMemoReportService:
         This includes memos with valid commission even if they have no associated dalali entries.
         
         Args:
-            financial_year: Optional financial year filter (e.g., "2024-2025")
+            financial_year: Optional financial year filter - can be a single year (e.g., "2024-2025") 
+                           or a list of years (e.g., ["2023-2024", "2024-2025"])
             supplier_id: Optional supplier ID filter
             party_id: Optional party ID filter
             status: Optional status filter (Approved, Pending, Cancelled)
@@ -82,16 +83,29 @@ class DalaliMemoReportService:
         
         # Apply filters
         if financial_year:
-            # Parse the financial year string
-            start_year, end_year = map(int, financial_year.split('-'))
+            # Handle both single financial year (str) and multiple financial years (list)
+            # Financial year is comma separated values
+            financial_years = financial_year.split(',')
+            print(financial_years)
             
-            # Create date range for the financial year (April 1st to March 31st)
-            fy_start_date = datetime(start_year, 4, 1)
-            fy_end_date = datetime(end_year, 3, 31)
+            # Create date range conditions for each financial year
+            financial_year_conditions = []
+            for fy in financial_years:
+                # Parse the financial year string
+                start_year, end_year = map(int, fy.split('-'))
+                
+                # Create date range for this financial year (April 1st to March 31st)
+                fy_start_date = datetime(start_year, 4, 1)
+                fy_end_date = datetime(end_year, 3, 31)
+                
+                # Add a condition for this financial year
+                financial_year_conditions.append(
+                    MemoEntry.register_date.between(fy_start_date, fy_end_date)
+                )
             
-            query = query.filter(
-                MemoEntry.register_date.between(fy_start_date, fy_end_date)
-            )
+            # Apply the combined conditions with OR logic if we have any conditions
+            if financial_year_conditions:
+                query = query.filter(or_(*financial_year_conditions))
             
         if supplier_id:
             # Apply supplier filter to either memo or dalali
@@ -160,7 +174,7 @@ class DalaliMemoReportService:
     
     def _build_query(
         self, 
-        financial_year: Optional[str] = None,
+        financial_year: Optional[Union[str, List[str]]] = None,
         supplier_id: Optional[int] = None,
         party_id: Optional[int] = None,
         status: Optional[str] = None,
@@ -171,7 +185,8 @@ class DalaliMemoReportService:
         Build the database queries to retrieve all required information.
         
         Args:
-            financial_year: Optional financial year filter (e.g., "2024-2025")
+            financial_year: Optional financial year filter - can be a single year (e.g., "2024-2025") 
+                           or a list of years (e.g., ["2023-2024", "2024-2025"])
             supplier_id: Optional supplier ID filter
             party_id: Optional party ID filter
             status: Optional status filter (Approved, Pending, Cancelled)
@@ -239,13 +254,12 @@ class DalaliMemoReportService:
                     "LESS GST": memo.less_gst,
                     "NET AMOUNT": net_amount,
                     "2%": memo.commision,
-                    
-                    # Initialize dalali fields as empty/None
                     "DALALI NO.": None,
                     "DALALI ENTRY DATE": None,
                     "PAID AMOUNT": None,
                     "TDS DEDUCTION": None,
                     "OTHER DEDUCTION": None,
+                    "PART": None,
                     "STATUS": "No Dalali",  # Default status for memos without dalali
                     "APPROVAL DATE": None,
                     "NOTES": None,
@@ -271,6 +285,7 @@ class DalaliMemoReportService:
                         "PAID AMOUNT": dalali.amount,
                         "TDS DEDUCTION": dalali.tds_deduction,
                         "OTHER DEDUCTION": dalali.other_deduction,
+                        "PART": dalali.total_part_dalali_amount,
                         "STATUS": dalali.status,
                         "APPROVAL DATE": db_receiver.received_date if receiver_payment else None,
                         "NOTES": dalali.notes,
@@ -375,6 +390,7 @@ class DalaliMemoReportService:
         
         Args:
             filters: Optional dictionary of filters to apply to the report
+                     'financial_year' can be a single year (str) or multiple years (list)
             sheet_name: Name for the Excel sheet
             
         Returns:

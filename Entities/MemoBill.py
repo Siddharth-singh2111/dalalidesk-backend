@@ -33,7 +33,7 @@ class MemoBill(Entry):
         elif self.type == 'ST':
             return {}
         elif self.type == 'DT':
-            raise DataError('Delete for dalali settlement not implemented yet')
+            return {}
         else:
             if self.bill_id is None:
                 raise DataError('bill_id is None for non-PR memo bill')
@@ -69,7 +69,7 @@ class MemoBill(Entry):
             data['bill_id'] = None
         if 'type' not in data:
             raise DataError('Memo Bill type not found')
-        elif data['type'] not in ['F', 'D', 'G', 'PR', 'ST']:
+        elif data['type'] not in ['F', 'D', 'G', 'PR', 'ST', 'DT']:
             raise DataError(f"Memo Bill type {data['type']} not supported")
         else:
             data['memo_type'] = data['type']

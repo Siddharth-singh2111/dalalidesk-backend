@@ -237,16 +237,10 @@ class MemoEntry(Entry):
             
         # Store the GST percentage used for calculation
         self.less_gst_percentage = gst_percentage
-            
-        try:
-            result = calculate_commission(self.amount, gst_percentage)
-            self.less_gst = int(result['amount_without_gst'])
-            self.commision = int(result['commission'])
-        except Exception as e:
-            # Log the error but continue with default values
-            print(f"Error calculating less_gst and commission: {e}")
-            self.less_gst = 0
-            self.commision = 0
+
+        result = calculate_commission(self.amount, gst_percentage)
+        self.less_gst = int(result['amount_without_gst'])
+        self.commision = int(result['commission'])
     
     def payment_settlement(self):
         """
@@ -369,7 +363,9 @@ class MemoEntry(Entry):
         if not cls.check_new(**data):
             return {'status': 'error', 'message': 'Duplicate memo number', 'input_errors': {'memo_number': {'error': True, 'message': 'Duplicate memo number'}}}
         memo = cls.from_dict(data)
+
         memo.generate_memo_bills_and_update_status()
+        
         ret = insert_memo_entry.insert_memo_entry(memo)
         if get_cls:
             if get_cls and ret['status'] == 'okay':
