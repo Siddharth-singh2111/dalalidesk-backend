@@ -910,20 +910,6 @@ def get_memo_entry_v2(id: int):
         # Get memo entry data with all related information
         memo_entry_data = MemoEntry.get_memo_entry(id)
         
-        # Get related register entries for memo bills
-        if 'memo_bills' in memo_entry_data:
-            for bill in memo_entry_data['memo_bills']:
-                if bill['bill_id'] is not None:
-                    try:
-                        register_entry = RegisterEntry.retrieve_by_id(bill['bill_id'])
-                        bill['register_entry'] = {
-                            'bill_number': register_entry.bill_number,
-                            'amount': register_entry.amount,
-                            'register_date': register_entry.register_date.strftime('%Y-%m-%d')
-                        }
-                    except Exception as e:
-                        print(f"Error fetching register entry: {str(e)}")
-        
         return json.dumps(memo_entry_data, cls=CustomEncoder)
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500

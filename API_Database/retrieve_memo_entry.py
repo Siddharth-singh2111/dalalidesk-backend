@@ -139,6 +139,7 @@ def get_memo_entry(memo_id: int) -> Dict:
             memo_bills_table.id,
             memo_bills_table.bill_id,
             register_entry_table.bill_number,
+            register_entry_table.amount.as_('bill_amount'),
             memo_bills_table.type,
             memo_bills_table.amount
         )\

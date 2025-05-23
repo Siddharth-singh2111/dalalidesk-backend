@@ -44,9 +44,9 @@ def create_memo():
 def delete_memo(memo_id):
     success, message = MemoService.delete_memo(memo_id)
     if success:
-        return jsonify({"message": message}), 200
+        return jsonify({"status": "success", "message": message}), 200
     else:
-        return jsonify({"error": message}), 400
+        return jsonify({"status": "error", "message": message}), 400
 
 @memo_bp.route("/pending/<int:supplier_id>", methods=["GET"])
 def get_pending_memos(supplier_id):

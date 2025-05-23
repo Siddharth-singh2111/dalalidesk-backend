@@ -1,8 +1,10 @@
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional, Tuple, Dict, Any, Union
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import exists, not_
-from ..models.memo import MemoEntry, MemoBills
+from hca_backend.Exceptions import DataError
+from ..models.memo import MemoEntry, MemoBills, PartPayments, MemoPayments
 from ..models.dalali import DalaliEntry, DalaliBills
+from ..models.register import RegisterEntry
 from ..extensions import db
 
 class MemoService:
@@ -15,27 +17,84 @@ class MemoService:
         memo = MemoEntry.query.get(memo_id)
         if not memo:
             return False, "Memo not found"
-            
-        # Check if any bills have type "PR"
-        for bill in memo.memo_bills:
-            if bill.type == "PR":
-                return False, "Cannot delete memo with PR type bills"
+        
+        if memo.dalali_bills:
+            return False, "Memo has associated dalali bills"
                 
         return True, ""
     
     @staticmethod
-    def delete_memo(memo_id: int) -> Tuple[bool, str]:
+    def delete_memo(memo_id: int, deleted_by: Optional[int] = None) -> Tuple[bool, str]:
         """
-        Delete a memo if business rules allow
-        Returns: (success, message)
+        Delete a memo and all its associated records
+        Handles the resets for register entries and part payments appropriately
+        Returns: (success, success/error message)
         """
         can_delete, reason = MemoService.can_delete_memo(memo_id)
         if not can_delete:
             return False, reason
             
         try:
-            memo = MemoEntry.query.get(memo_id)
-            db.session.delete(memo)
+            # Start a transaction
+            memo_entry = MemoEntry.query.get(memo_id)
+            if not memo_entry:
+                return False, "Memo entry not found"
+            
+            # Process each memo bill based on its type
+            for bill in memo_entry.memo_bills:
+                if bill.type == "PR":
+                    # Handle part payment logic
+                    part_payment = PartPayments.query.filter_by(memo_id=memo_id).first()
+                    if part_payment:
+                        if part_payment.used:
+                            return False, f"Cannot delete memo with used part payment. Used in Memo Number: {part_payment.use_memo.memo_number}"
+                        else:
+                            db.session.delete(part_payment)
+                else:
+                    # Reset register entry fields based on bill type
+                    if bill.bill_id is not None:
+                        register_entry = RegisterEntry.query.get(bill.bill_id)
+                        if register_entry:
+                            if bill.type == "F":
+                                register_entry.status = "N"
+                                register_entry.deduction = 0
+                                register_entry.gr_amount = 0
+                                register_entry.partial_amount = 0
+                            elif bill.type == "D":
+                                register_entry.deduction = 0
+                            elif bill.type == "G":
+                                register_entry.gr_amount = 0
+                            
+                            if deleted_by:
+                                register_entry.last_updated_by = deleted_by
+                
+            # Delete all memo bills
+            for bill in memo_entry.memo_bills:
+                db.session.delete(bill)
+            
+            # Delete all memo payments
+            for payment in memo_entry.memo_payments:
+                db.session.delete(payment)
+            
+            # Handle part payments that originated from this memo
+            for part_payment in memo_entry.part_payments_source:
+                if part_payment.used:
+                    return False, f"Cannot delete memo with used part payment. Used in Memo Number: {part_payment.use_memo.memo_number}"
+                db.session.delete(part_payment)
+            
+            # Handle part payments that were used by this memo (set them back to unused)
+            for part_payment in memo_entry.part_payments_used:
+                part_payment.used = False
+                part_payment.use_memo_id = None
+            
+            # Handle any dalali bills associated with this memo
+            if memo_entry.dalali_bills:
+                return False, "Cannot delete memo with associated dalali bills"
+            
+            # Delete the memo entry itself
+            db.session.delete(memo_entry)
+            
+            # Commit the transaction
             db.session.commit()
             return True, "Memo deleted successfully"
         except Exception as e:
@@ -69,6 +128,3 @@ class MemoService:
         ).all()
 
         return pending_memos
-    
-    
-    

@@ -40,10 +40,12 @@ class MemoBill(Entry):
             register_entry = RegisterEntry.retrieve_by_id(self.bill_id)
             if self.type == 'F':
                 register_entry.status = 'N'
+                register_entry.deduction = 0
+                register_entry.gr_amount = 0
             elif self.type == 'D':
-                register_entry.deduction -= self.amount
+                register_entry.deduction = 0
             elif self.type == 'G':
-                register_entry.gr_amount -= self.amount
+                register_entry.gr_amount = 0
             ret = register_entry.update()
         return ret
 
