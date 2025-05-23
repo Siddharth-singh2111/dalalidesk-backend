@@ -164,8 +164,14 @@ def get_memo_entry(memo_id: int) -> Dict:
             mode = 'Part'
             break
         elif bill['type'] == 'ST':
-            mode = 'Settlement'
+            mode = 'Payment Settlement'
             break
+        elif bill['type'] == 'DT':
+            mode = 'Delivery'
+            break
+
+    if memo_data['memo_type'] is None:
+        memo_data['memo_type'] = mode
     
     # Get part payments if full mode
     part_payments = []

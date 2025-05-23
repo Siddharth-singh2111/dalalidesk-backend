@@ -4,6 +4,8 @@ from ..models.memo import MemoEntry
 from ..services.memo import MemoService
 from ..extensions import db
 from pydantic import ValidationError
+from hca_backend.API_Database.retrieve_memo_dalali import calculate_commission
+from hca_backend.Exceptions import DataError
 
 memo_bp = Blueprint("memo", __name__, url_prefix="/api/memo")
 
@@ -52,3 +54,36 @@ def delete_memo(memo_id):
 def get_pending_memos(supplier_id):
     memos = MemoService.get_pending_memos(supplier_id)
     return jsonify([MemoEntrySchema.model_validate(memo).model_dump() for memo in memos])
+
+@memo_bp.route("/<int:memo_id>/commission", methods=["POST"])
+def update_memo_commission(memo_id):
+    """
+    Update the commission information for a memo entry using calculate_commission function.
+    
+    Parameters expected in request body:
+    - gst_percentage: float (optional, default 4.762)
+    """
+    # Get the memo entry
+    entry = MemoEntry.query.get_or_404(memo_id)
+    
+    # Get GST percentage from request or use default
+    data = request.json or {}
+    gst_percentage = data.get('gst_percentage', 4.762)
+    
+    # Use calculate_commission function to calculate values
+    try:
+        result = calculate_commission(entry.amount, gst_percentage)
+    except DataError as e:
+        return jsonify({"error": str(e)}), 400
+    
+    # Update the memo entry
+    entry.less_gst_percentage = 5
+    entry.less_gst = result['amount_without_gst']
+    entry.commision = result['commission']
+    
+    # Save changes
+    db.session.commit()
+    
+    # Return the updated memo
+    schema = MemoEntrySchema.model_validate(entry)
+    return jsonify(schema.model_dump())
