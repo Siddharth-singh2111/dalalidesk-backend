@@ -1,8 +1,11 @@
 from ..extensions import db
 from sqlalchemy.orm import MappedColumn, Mapped, relationship
+from sqlalchemy import CheckConstraint
 from datetime import datetime
 from typing import Optional, List
 
+
+ALLOWED_CITIES = ['Bangalore', 'Jaipur', 'Kolkata', 'Surat', 'Varanasi', 'Belgaum', 'Mumbai', 'Delhi', 'Mau']
 
 class Supplier(db.Model):
     __tablename__ = "supplier"
@@ -33,8 +36,9 @@ class Supplier(db.Model):
     )
 
     # CHECK constraint for city
+    city_string = ', '.join([f"'{city}'" for city in ALLOWED_CITIES])
     __table_args__ = (
-        db.CheckConstraint("city IN ('Bangalore', 'Jaipur', 'Kolkata', 'Surat', 'Varanasi', 'Belgaum', 'Mumbai', 'Delhi', 'Mau')", name="check_supplier_city"),
+        CheckConstraint(f"city IN ({city_string})", name="check_supplier_city"),
     )
 
 

@@ -11,9 +11,10 @@ import pytz
 
 from hca_backend.v2.extensions import db
 from hca_backend.v2.core.listeners import audit_before_flush, audit_after_flush
-from hca_backend.v2.api import memo_bp, dalali_bp, reports_bp
+from hca_backend.v2.api import memo_bp, dalali_bp, reports_bp, dashboard_bp, supplier_bp
 from Exceptions.custom_exception import DataError as LocalDataError
 from hca_backend.Exceptions import DataError as AppDataError
+
 
 
 # Import Dalali models
@@ -100,6 +101,8 @@ app.register_blueprint(dalali_bp)
 app.register_blueprint(v1_bp)
 app.register_blueprint(memo_bp)
 app.register_blueprint(reports_bp)
+app.register_blueprint(dashboard_bp)
+app.register_blueprint(supplier_bp)
 # Initialize scheduler
 scheduler = BackgroundScheduler(daemon=True, timezone=pytz.timezone("Asia/Kolkata"))
 scheduler.add_job(func=_perform_backup, trigger="interval", hours=24)
