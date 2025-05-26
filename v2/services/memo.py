@@ -103,7 +103,7 @@ class MemoService:
     
     
     @staticmethod
-    def get_pending_memos(supplier_id: int) -> List[MemoEntry]:
+    def get_pending_memos(supplier_id: int, party_id: int = None) -> List[MemoEntry]:
         """
         Get all pending memos for a supplier.
         A memo is considered pending if it has no associated dalali bills,
@@ -125,6 +125,11 @@ class MemoService:
             MemoEntry.commision != None,
             MemoEntry.less_gst_percentage != None,
             not_(subquery)
-        ).all()
+        )
+
+        if party_id is not None:
+            pending_memos = pending_memos.filter(MemoEntry.party_id == party_id)
+        
+        pending_memos = pending_memos.all()
 
         return pending_memos

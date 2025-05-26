@@ -1,7 +1,7 @@
 # app/__init__.py
 from flask import Flask
 from .extensions import db
-from .api import memo_bp, dalali_bp, reports_bp
+from .api import memo_bp, dalali_bp, reports_bp, dashboard_bp
 from .core.listeners import audit_before_flush, audit_after_flush
 
 def create_app():
@@ -19,4 +19,5 @@ def create_app():
     app.register_blueprint(memo_bp)
     app.register_blueprint(dalali_bp)
     app.register_blueprint(reports_bp)
+    app.register_blueprint(dashboard_bp)
     return app
