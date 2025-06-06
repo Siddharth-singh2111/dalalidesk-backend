@@ -40,6 +40,7 @@ class DalaliService:
                 tds_deduction=data.get("tds_deduction"),
                 other_deduction=data.get("other_deduction"),
                 settlement_deduction=data.get("settlement_deduction"),
+                gst_addition=data.get("gst_addition"),
                 other_details=json.dumps(other_details_data),
                 notes=json.dumps(data.get("notes", [])),
                 type=data.get("type"),  # Validation already done in schema
@@ -166,6 +167,8 @@ class DalaliService:
                 dalali_entry.other_deduction = data.get("other_deduction")
             if data.get("settlement_deduction") is not None:
                 dalali_entry.settlement_deduction = data.get("settlement_deduction")
+            if data.get("gst_addition") is not None:
+                dalali_entry.gst_addition = data.get("gst_addition")
             if data.get("less_details") is not None:
                 # Extract and format the other_details from less_details consistently
                 other_details_data = data.get("less_details", {}).get("other_details", [])
@@ -405,7 +408,7 @@ class DalaliService:
             for tds in dalali_entry.tds_details:
                 db.session.delete(tds)
                 
-            # Delete the dalali entry itself
+            # Delete the dalali entry itself3
             db.session.delete(dalali_entry)
             
             # Commit the transaction

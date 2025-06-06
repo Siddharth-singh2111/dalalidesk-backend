@@ -39,6 +39,7 @@ class DalaliEntry(db.Model):
     tds_deduction: Mapped[int] = MappedColumn(db.Integer, nullable=False)
     other_deduction: Mapped[int] = MappedColumn(db.Integer, nullable=False)
     settlement_deduction: Mapped[int] = MappedColumn(db.Integer, nullable=False)
+    gst_addition: Mapped[int] = MappedColumn(db.Integer, nullable=True)
     other_details: Mapped[Optional[str]] = MappedColumn(db.Text, nullable=True)
     notes: Mapped[Optional[str]] = MappedColumn(db.Text, nullable=True)
     type: Mapped[str] = MappedColumn(db.String(10), nullable=False)

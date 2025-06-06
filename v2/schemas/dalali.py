@@ -89,6 +89,7 @@ class DalaliEntrySchema(BaseSchema):
     tds_deduction: float
     other_deduction: float
     settlement_deduction: float
+    gst_addition: Optional[float] = None
     less_details: Optional[LessDetailsSchema] = None
     notes: Optional[List[str]] = []
     type: str  # "Full" or "Part" (1 or 2)
@@ -192,6 +193,7 @@ class DalaliEntryCreate(BaseSchema):
     tds_deduction: float
     other_deduction: float
     settlement_deduction: float
+    gst_addition: float
     less_details: Optional[Dict[str, List[str]]] = None
     notes: Optional[List[str]] = None
     type: Union[str, int]  # "Full" or "Part" (1 or 2)
@@ -275,6 +277,7 @@ class DalaliEntryUpdate(BaseSchema):
     tds_deduction: Optional[float] = None
     other_deduction: Optional[float] = None
     settlement_deduction: Optional[float] = None
+    gst_addition: Optional[float] = None
     less_details: Optional[Dict[str, List[str]]] = None
     notes: Optional[List[str]] = None
     type: Optional[Union[str, int]] = None  # "Full" or "Part" (1 or 2)
