@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import json
@@ -26,6 +26,9 @@ from hca_backend.utils import table_class_mapper
 
 # Create the v1 blueprint
 v1_bp = Blueprint("v1", __name__, url_prefix="/api")
+
+ocr_queue = OCRQueue()
+name_cache = NameMatchCache()
 
 # Custom decorator for checking permissions
 def permission_required(resource, action):
@@ -729,11 +732,7 @@ def parse_register_entry_route():
         print(request.files)
         image_bytes = image.read()
         encoded_image = base64.b64encode(image_bytes).decode('utf-8')
-        if v1_bp.config.get('TESTING'):
-            if queue_mode:
-                return (jsonify({'supplier_name': 'Test Supplier', 'supplier_name_matched': 'Test Supplier Ltd', 'party_name': 'Test Party', 'party_name_matched': 'Test Party Inc', 'bill_number': '123', 'amount': 1000, 'date': '2024-01-29', 'queue_entry_id': 'test_queue_id'}), 200)
-            else:
-                return (jsonify({'supplier_name': 'Test Supplier', 'supplier_name_matched': 'Test Supplier Ltd', 'party_name': 'Test Party', 'party_name_matched': 'Test Party Inc', 'bill_number': '123', 'amount': 1000, 'date': '2024-01-29'}), 200)
+       
         parsed_data = parse_register_entry(encoded_image, queue_mode=queue_mode)
         if parsed_data is None:
             return (jsonify({'status': 'error', 'message': 'Failed to parse image'}), 500)

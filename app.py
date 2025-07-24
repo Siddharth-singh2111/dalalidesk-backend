@@ -31,9 +31,6 @@ from OCR.ocr_queue import OCRQueue
 # Import v1 blueprint
 from hca_backend.v1.api import v1_bp
 
-# Initialize queue
-ocr_queue = OCRQueue()
-
 # Load environment variables
 load_dotenv()
 
@@ -73,6 +70,14 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Initialize database
 db.init_app(app)
 
+
+# Initialize queue
+ocr_queue = OCRQueue()
+name_cache = NameMatchCache()
+
+# Add queue to app context
+app.config['OCR_QUEUE'] = ocr_queue
+app.config['NAME_CACHE'] = name_cache
 
 with app.app_context():
         # Reflect existing tables
