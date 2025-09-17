@@ -118,3 +118,23 @@ def generate_excel_file(df: pd.DataFrame, sheet_name: str = "Report") -> BytesIO
     
     output.seek(0)
     return output
+
+def generate_multi_sheet_excel_file(sheets_data: Dict[str, pd.DataFrame]) -> BytesIO:
+    """
+    Generate an Excel file with multiple sheets from pandas DataFrames.
+    
+    Args:
+        sheets_data: Dictionary where keys are sheet names and values are DataFrames
+        
+    Returns:
+        A BytesIO object containing the Excel file with multiple sheets
+    """
+    output = BytesIO()
+    
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        for sheet_name, df in sheets_data.items():
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+            apply_excel_formatting(writer, sheet_name, df)
+    
+    output.seek(0)
+    return output

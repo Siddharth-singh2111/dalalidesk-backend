@@ -25,6 +25,7 @@ class Supplier(db.Model):
     # Relationships
     dalali_entries = relationship("DalaliEntry", back_populates="supplier")
     memo_entries = relationship("MemoEntry", back_populates="supplier")
+    part_payments = relationship("PartPayments", back_populates="supplier")
     # User relationships for audit
     creator = relationship(
         "Users",
@@ -47,6 +48,25 @@ class Party(db.Model):
 
     id: Mapped[int] = MappedColumn(db.Integer, primary_key=True)
     name: Mapped[str] = MappedColumn(db.String(100), nullable=False, unique=True)
+    address: Mapped[Optional[str]] = MappedColumn(db.String(300), nullable=True)
+    phone_number: Mapped[Optional[str]] = MappedColumn(db.String(20), nullable=True)
+    last_update: Mapped[datetime] = MappedColumn(db.TIMESTAMP, server_default=db.func.current_timestamp(), nullable=False)
+    created_at: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)
+    created_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    last_updated: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)
+    last_updated_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
 
+    # Relationships
     memo_entries = relationship("MemoEntry", back_populates="party")
+    part_payments = relationship("PartPayments", back_populates="party")
+    
+    # User relationships for audit
+    creator = relationship(
+        "Users",
+        foreign_keys=[created_by],
+    )
+    last_updater = relationship(
+        "Users",
+        foreign_keys=[last_updated_by],
+    )
     
