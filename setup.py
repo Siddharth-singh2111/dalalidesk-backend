@@ -21,8 +21,9 @@ setup(
         "requests",
         "supabase",
         "rapidfuzz",
-        "langchain>=0.1.0",
+        "langchain-core>=0.2.0",
         "langchain-openai>=0.0.2",
-        "pydantic>=2.0.0"
+        "pydantic>=2.0.0",
+        "pytz>=2023.3",
     ]
 )

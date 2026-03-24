@@ -1,0 +1,25 @@
+# Local Postgres — same shape as Supabase pool: db `postgres`, user `postgres`, port 5432.
+# First start loads API_Database/holani_cloth_agency.sql (admin / admin5555).
+# Reset data: docker compose down -v && docker compose up -d
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: hca_postgres_local
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: localdev
+      POSTGRES_DB: postgres
+    # Host 5433 avoids conflict when another Postgres already uses 5432 on your machine.
+    ports:
+      - "5433:5432"
+    volumes:
+      - hca_pgdata:/var/lib/postgresql/data
+      - ./API_Database/holani_cloth_agency.sql:/docker-entrypoint-initdb.d/01-holani_cloth_agency.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  hca_pgdata:

@@ -388,9 +388,9 @@ CREATE TABLE IF NOT EXISTS memo_dalali_payments (
     FOREIGN KEY (last_updated_by) REFERENCES users(id)
 );
 
--- Default admin user
+-- Default admin user (password: admin5555 — change in production)
 INSERT INTO users (username, password_hash, full_name, role, is_active)
-SELECT 'admin', '$2b$12$1xxxxxxxxxxxxxxxxxxxxuZLbwxnpY0o58unSvIPxddLxGystU.', 'Administrator', 'admin', TRUE
+SELECT 'admin', '$2b$12$exsUIERNQnlTDLqhYqAS3uRFCYu6H9C1ru4OvdIUrH0QLrSfjHu9G', 'Administrator', 'admin', TRUE
 WHERE NOT EXISTS (
     SELECT 1 FROM users WHERE username = 'admin'
 );

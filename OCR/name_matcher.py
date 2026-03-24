@@ -2,7 +2,7 @@ import os
 from typing import List, Optional, Tuple, Dict
 from rapidfuzz import process, distance
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from dotenv import load_dotenv
 
 from API_Database import retrieve_indivijual

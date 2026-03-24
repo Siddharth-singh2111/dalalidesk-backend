@@ -39,10 +39,15 @@ def setup_audit_trail():
     admin_password = "admin5555"  # This should be changed in production
     password_hash = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     
+    # Replace dev placeholder or legacy fake seed hash (not a real bcrypt of any password).
     update_query = f"""
     UPDATE users 
     SET password_hash = '{password_hash}' 
-    WHERE username = 'admin' AND password_hash LIKE '$2b$12$1xxxxxxxxxxxxxxxxxxxx%'
+    WHERE username = 'admin' 
+      AND (
+        password_hash LIKE '$2b$12$1xxxxxxxxxxxxxxxxxxxx%'
+        OR password_hash = '$2b$12$1xxxxxxxxxxxxxxxxxxxxuZLbwxnpY0o58unSvIPxddLxGystU.'
+      )
     """
     
     try:
