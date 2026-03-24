@@ -121,4 +121,4 @@ if __name__ == '__main__':
     # otherwise the scheduler might run twice.
     # Set use_reloader=False when running with 'flask run'
     # or pass it to app.run directly if using that.
-    app.run(debug=True, use_reloader=False)
+    app.run(debug=True, use_reloader=False, port=5050)
