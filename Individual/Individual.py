@@ -5,6 +5,7 @@ The file is supposed to represent a Individual
 from __future__ import annotations
 from typing import Dict, Optional
 from datetime import datetime
+import re
 import phonenumbers
 from API_Database import get_individual_id_by_name, insert_individual
 from API_Database import get_individual_by_id, update_individual
@@ -46,6 +47,11 @@ class Individual:
         self.city = city
         gst_default = kwargs.get('gst_default', None)
         self.gst_default = gst_default
+        self.gstin = None
+        if table_name == 'supplier' and 'gstin' in kwargs:
+            raw = kwargs.get('gstin')
+            if raw is not None and str(raw).strip():
+                self.gstin = re.sub(r'\s+', '', str(raw).strip()).upper()
         self.table_name = table_name
         self.id = kwargs.get('id', None)
         if self.id is not None:
@@ -74,7 +80,10 @@ class Individual:
             Dict: The result of the update operation
         """
         from psql import execute_query
-        
+
+        def _strip_quotes(value: str) -> str:
+            return str(value).replace("'", "")
+
         entity_id = self.get_id()
         update_fields = [f"name='{self.name}'", f"address='{self.address}'"]
         if self.phone_number:
@@ -83,7 +92,11 @@ class Individual:
             update_fields.append(f"city='{self.city}'")
         if self.gst_default is not None:
             update_fields.append(f"gst_default={self.gst_default}")
-            
+        if self.table_name == 'supplier':
+            if self.gstin:
+                update_fields.append(f"gstin='{_strip_quotes(self.gstin)}'")
+            else:
+                update_fields.append("gstin=NULL")
         # Add audit fields
         if current_user_id is not None:
             update_fields.append(f"last_updated=CURRENT_TIMESTAMP")
@@ -217,11 +230,15 @@ class Individual:
         if entity.city is not None:
             columns.append('city')
             values.append(f"'{entity.city}'")
-            
+
         if entity.gst_default is not None:
             columns.append('gst_default')
             values.append(f"{entity.gst_default}")
-            
+
+        if entity.table_name == 'supplier' and getattr(entity, 'gstin', None):
+            columns.append('gstin')
+            values.append(f"'{remove_single_quotes(entity.gstin)}'")
+
         # Add audit fields
         if current_user_id is not None:
             columns.append('created_by')

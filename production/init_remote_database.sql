@@ -5,6 +5,7 @@ CREATE TABLE supplier (
 	name VARCHAR(100),
 	address VARCHAR(300),
 	phone_number VARCHAR(20), -- Added column
+	gstin VARCHAR(20),
 	UNIQUE (name),
 	last_update TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP 
 );

@@ -8,6 +8,7 @@ CREATE TABLE supplier (
     phone_number VARCHAR(20),
     city VARCHAR(20) CHECK (city IN ('Bangalore', 'Jaipur', 'Kolkata', 'Surat', 'Varanasi', 'Belgaum', 'Mumbai', 'Delhi', 'Mau')),
     gst_default DECIMAL DEFAULT 5.0,
+    gstin VARCHAR(20),
     UNIQUE (name),
     last_update TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
