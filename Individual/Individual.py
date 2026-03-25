@@ -48,7 +48,7 @@ class Individual:
         gst_default = kwargs.get('gst_default', None)
         self.gst_default = gst_default
         self.gstin = None
-        if table_name == 'supplier' and 'gstin' in kwargs:
+        if table_name in ('supplier', 'party') and 'gstin' in kwargs:
             raw = kwargs.get('gstin')
             if raw is not None and str(raw).strip():
                 self.gstin = re.sub(r'\s+', '', str(raw).strip()).upper()
@@ -92,7 +92,7 @@ class Individual:
             update_fields.append(f"city='{self.city}'")
         if self.gst_default is not None:
             update_fields.append(f"gst_default={self.gst_default}")
-        if self.table_name == 'supplier':
+        if self.table_name in ('supplier', 'party'):
             if self.gstin:
                 update_fields.append(f"gstin='{_strip_quotes(self.gstin)}'")
             else:
@@ -235,7 +235,7 @@ class Individual:
             columns.append('gst_default')
             values.append(f"{entity.gst_default}")
 
-        if entity.table_name == 'supplier' and getattr(entity, 'gstin', None):
+        if entity.table_name in ('supplier', 'party') and getattr(entity, 'gstin', None):
             columns.append('gstin')
             values.append(f"'{remove_single_quotes(entity.gstin)}'")
 

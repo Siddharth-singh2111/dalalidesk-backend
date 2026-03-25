@@ -16,7 +16,8 @@ CREATE TABLE party (
 	id INT DEFAULT NEXTVAL ('party_seq') PRIMARY KEY,
 	name VARCHAR(100),
 	address VARCHAR(300),
-	phone_number VARCHAR(20), 
+	phone_number VARCHAR(20),
+	gstin VARCHAR(20),
 	UNIQUE (name),
 	last_update TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP 
 );

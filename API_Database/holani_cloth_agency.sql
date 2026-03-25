@@ -24,6 +24,7 @@ CREATE TABLE party (
     name VARCHAR(100),
     address VARCHAR(300),
     phone_number VARCHAR(20),
+    gstin VARCHAR(20),
     UNIQUE (name),
     last_update TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
