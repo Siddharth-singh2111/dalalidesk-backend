@@ -1,0 +1,36 @@
+# /etc/nginx/sites-available/dalalidesk
+# Replace DOMAIN with your actual hostname, e.g. dalalidesk.duckdns.org
+
+# HTTP -> HTTPS redirect. Let's Encrypt's certbot will populate the TLS server below
+# automatically when you run `certbot --nginx -d DOMAIN`.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name DOMAIN;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name DOMAIN;
+
+    # ssl_certificate / ssl_certificate_key — added automatically by certbot.
+
+    client_max_body_size 25M;
+
+    # Backend API
+    location /api/ {
+        proxy_pass http://127.0.0.1:5050;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+
+    # Default — return 404 for anything non-API. Frontend is on Vercel.
+    location / {
+        return 404;
+    }
+}

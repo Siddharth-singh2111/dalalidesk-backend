@@ -28,3 +28,4 @@ pandas
 xlsxwriter
 APScheduler
 pytz>=2023.3
+gunicorn

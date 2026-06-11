@@ -1,0 +1,21 @@
+[Unit]
+Description=DalaliDesk backend (gunicorn)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=dalalidesk
+Group=dalalidesk
+# Edit these paths to match the install on this server.
+WorkingDirectory=/opt/dalalidesk/hca_backend
+Environment="GUNICORN_BIN=/opt/dalalidesk/hca_venv/bin/gunicorn"
+EnvironmentFile=/opt/dalalidesk/hca_backend/.env
+ExecStart=/opt/dalalidesk/hca_backend/deploy/run_gunicorn.sh
+Restart=on-failure
+RestartSec=5
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -52,12 +52,19 @@ def handle_app_data_error(e):
         error['input_errors'] = {}
     return jsonify(error), 500
 
-# Enable CORS for all routes
-CORS(app)
+# CORS: in prod, restrict to the deployed frontend origin(s) via
+# CORS_ALLOWED_ORIGINS env var (comma-separated). In dev (no env var set),
+# fall back to allow-all so the Vite proxy works without ceremony.
+_cors_origins = [o.strip() for o in os.getenv('CORS_ALLOWED_ORIGINS', '').split(',') if o.strip()]
+if _cors_origins:
+    CORS(app, resources={r"/api/*": {"origins": _cors_origins}}, supports_credentials=True)
+else:
+    CORS(app)
 
 # Initialize JWT
 app.config['JSON_SORT_KEYS'] = False
-app.config['JWT_SECRET_KEY'] = 'NHYd198vQNOBa9HrIAGEGNYrKHBegc9Z'
+# JWT secret: must be set via JWT_SECRET_KEY env var in prod. Dev fallback only.
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY') or 'dev-only-secret-do-not-use-in-prod'
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
 app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(hours=6)
 
