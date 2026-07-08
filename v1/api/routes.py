@@ -1027,7 +1027,9 @@ def get_all_register_entries_with_names():
             filters['end_date'] = request.args.get('end_date')
         if request.args.get('register_number'):
             filters['register_number'] = int(request.args.get('register_number'))
-        
+        if request.args.get('search'):
+            filters['search'] = request.args.get('search').strip()
+
         # Only pass filters if they exist
         kwargs = {}
         if page is not None and page_size is not None:
@@ -1035,7 +1037,7 @@ def get_all_register_entries_with_names():
             kwargs['page_size'] = page_size
         if filters:
             kwargs['filters'] = filters
-            
+
         result = retrieve_register_entry.get_all_register_entries_with_names(**kwargs)
         
         if result['status'] == 'error':

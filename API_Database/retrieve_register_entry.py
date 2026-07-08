@@ -425,34 +425,36 @@ def get_all_register_entries_with_names(page=None, page_size=None, filters=None)
                 users_table.full_name.as_('created_by_name')
             )
         
-        # Apply filters if provided
-        if filters:
+        def apply_filters(q):
+            if not filters:
+                return q
             if 'supplier_id' in filters and filters['supplier_id']:
-                query = query.where(register_entry_table.supplier_id == filters['supplier_id'])
+                q = q.where(register_entry_table.supplier_id == filters['supplier_id'])
             if 'party_id' in filters and filters['party_id']:
-                query = query.where(register_entry_table.party_id == filters['party_id'])
+                q = q.where(register_entry_table.party_id == filters['party_id'])
             if 'start_date' in filters and filters['start_date']:
-                query = query.where(register_entry_table.register_date >= filters['start_date'])
+                q = q.where(register_entry_table.register_date >= filters['start_date'])
             if 'end_date' in filters and filters['end_date']:
-                query = query.where(register_entry_table.register_date <= filters['end_date'])
+                q = q.where(register_entry_table.register_date <= filters['end_date'])
             if 'register_number' in filters and filters['register_number']:
-                query = query.where(register_entry_table.bill_number == filters['register_number'])
-        
-        # Get total count for pagination
-        count_query = Query.from_(register_entry_table).select(fn.Count('*').as_('total'))
-        
-        # Apply the same filters to count query
-        if filters:
-            if 'supplier_id' in filters and filters['supplier_id']:
-                count_query = count_query.where(register_entry_table.supplier_id == filters['supplier_id'])
-            if 'party_id' in filters and filters['party_id']:
-                count_query = count_query.where(register_entry_table.party_id == filters['party_id'])
-            if 'start_date' in filters and filters['start_date']:
-                count_query = count_query.where(register_entry_table.register_date >= filters['start_date'])
-            if 'end_date' in filters and filters['end_date']:
-                count_query = count_query.where(register_entry_table.register_date <= filters['end_date'])
-            if 'register_number' in filters and filters['register_number']:
-                count_query = count_query.where(register_entry_table.bill_number == filters['register_number'])
+                q = q.where(register_entry_table.bill_number == filters['register_number'])
+            if 'search' in filters and filters['search']:
+                term = str(filters['search']).strip()
+                criterion = supplier_table.name.ilike(f'%{term}%') | party_table.name.ilike(f'%{term}%')
+                if term.isdigit():
+                    criterion = criterion | (register_entry_table.bill_number == int(term))
+                q = q.where(criterion)
+            return q
+
+        query = apply_filters(query)
+
+        # Count query joins supplier/party so the search filter can reference their names;
+        # left joins keep the row count identical to the unjoined table.
+        count_query = Query.from_(register_entry_table)\
+            .left_join(supplier_table).on(register_entry_table.supplier_id == supplier_table.id)\
+            .left_join(party_table).on(register_entry_table.party_id == party_table.id)\
+            .select(fn.Count('*').as_('total'))
+        count_query = apply_filters(count_query)
         
         count_result = execute_query(count_query.get_sql())
         total_count = count_result['result'][0]['total'] if count_result['status'] == 'okay' else 0
