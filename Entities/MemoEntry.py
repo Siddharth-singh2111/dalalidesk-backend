@@ -12,7 +12,7 @@ from .Entry import Entry
 from .MemoBill import MemoBill
 from API_Database import insert_memo_entry
 from API_Database import retrieve_memo_entry, get_memo_entry, get_memo_entry_id, get_memo_bills_by_id
-from API_Database.retrieve_memo_dalali import calculate_commission
+from API_Database.retrieve_memo_dalali import calculate_commission, get_commission_rate
 from API_Database import get_next_available_memo_number
 from API_Database import update_part_payment
 from API_Database import parse_date, sql_date, delete_memo_payments
@@ -37,6 +37,7 @@ class MemoEntry(Entry):
     discount: int
     other_deduction: int
     rate_difference: int
+    additions: int
     mode: str
     register_date: datetime
     selected_bills: List[RegisterEntry]
@@ -46,6 +47,7 @@ class MemoEntry(Entry):
     discount_details: List[str]
     other_deduction_details: List[str]
     rate_difference_details: List[str]
+    additions_details: List[Dict]
     notes: List[str]
     parent_dalali_id: Optional[int]
     parent_memo_id: Optional[int]
@@ -58,9 +60,10 @@ class MemoEntry(Entry):
                  selected_bills: List[int]=[], payment: List[Dict[Union[int, str]]]=[], selected_part: List[Dict[int]]=[], 
                  gr_amount: int=0, deduction: int=0, 
                  # New parameters
-                 discount: int=0, other_deduction: int=0, rate_difference: int=0,
-                 gr_amount_details: Optional[List[str]]=None, discount_details: Optional[List[str]]=None, 
+                 discount: int=0, other_deduction: int=0, rate_difference: int=0, additions: int=0,
+                 gr_amount_details: Optional[List[str]]=None, discount_details: Optional[List[str]]=None,
                  other_deduction_details: Optional[List[str]]=None, rate_difference_details: Optional[List[str]]=None,
+                 additions_details: Optional[List[Dict]]=None,
                  notes: Optional[List[str]]=None,
                  parent_dalali_id: Optional[int]=None, parent_memo_id: Optional[int]=None,
                  memo_type: str='Full', less_gst: int=0, commision: int=0,
@@ -77,6 +80,7 @@ class MemoEntry(Entry):
         self.discount = discount
         self.other_deduction = other_deduction
         self.rate_difference = rate_difference
+        self.additions = additions
         self.mode = mode
         self.selected_bills = RegisterEntry.retrieve_by_id_list(selected_bills)
         self.payment = payment
@@ -85,6 +89,7 @@ class MemoEntry(Entry):
         self.discount_details = discount_details or []
         self.other_deduction_details = other_deduction_details or []
         self.rate_difference_details = rate_difference_details or []
+        self.additions_details = additions_details or []
         self.notes = notes or []
         self.parent_dalali_id = parent_dalali_id
         self.parent_memo_id = parent_memo_id
@@ -238,7 +243,8 @@ class MemoEntry(Entry):
         # Store the GST percentage used for calculation
         self.less_gst_percentage = gst_percentage
 
-        result = calculate_commission(self.amount, gst_percentage)
+        rate_percent = get_commission_rate(self.supplier_id, self.party_id)
+        result = calculate_commission(self.amount, gst_percentage, rate_percent)
         self.less_gst = int(result['amount_without_gst'])
         self.commision = int(result['commission'])
     
@@ -284,9 +290,9 @@ class MemoEntry(Entry):
     @classmethod
     def from_dict(cls, data: Dict, parse_memo_bills: bool=False) -> MemoEntry:
         """Creates a MemoEntry instance from a dictionary of attributes, optionally parsing memo bills."""
-        int_attributes = ['memo_number', 'supplier_id', 'party_id', 'amount', 'selected_bills', 
+        int_attributes = ['memo_number', 'supplier_id', 'party_id', 'amount', 'selected_bills',
                          'gr_amount', 'deduction', 'discount', 'other_deduction', 'rate_difference',
-                         'parent_dalali_id', 'parent_memo_id', 'less_gst', 'commision']
+                         'additions', 'parent_dalali_id', 'parent_memo_id', 'less_gst', 'commision']
         # Process selected_bills
         if 'selected_bills' in data:
             data['selected_bills'] = [int(bill['id']) for bill in data['selected_bills']]
@@ -308,6 +314,9 @@ class MemoEntry(Entry):
                     else:
                         info['cheque_number'] = None
                     del info['cheque']
+                # Normalize empty cheque_date to None
+                if not info.get('cheque_date'):
+                    info['cheque_date'] = None
                 # Handle new amount field
                 if 'amount' in info:
                     info['amount'] = int(info['amount']) if info['amount'] else 0
@@ -364,8 +373,25 @@ class MemoEntry(Entry):
             return {'status': 'error', 'message': 'Duplicate memo number', 'input_errors': {'memo_number': {'error': True, 'message': 'Duplicate memo number'}}}
         memo = cls.from_dict(data)
 
+        # Guard: a Full memo may not settle a bill that is already fully settled by
+        # another memo. selected_bills are loaded fresh from the DB in __init__, so
+        # bill.status reflects the current database state (not the client payload).
+        # Returning here happens before generate_memo_bills_and_update_status(), i.e.
+        # before the first DB write (bill.update()), so a rejection leaves the DB untouched.
+        if memo.mode == 'Full':
+            settled = [bill for bill in memo.selected_bills if bill.status == 'F']
+            if settled:
+                bill_numbers = ', '.join(str(bill.bill_number) for bill in settled)
+                return {
+                    'status': 'error',
+                    'code': 'BILL_ALREADY_SETTLED',
+                    'message': f'Bill(s) {bill_numbers} are already settled by another memo. '
+                               f'The bill list was out of date — the page will refresh.',
+                    'input_errors': {'selected_bills': {'error': True, 'message': f'Bill(s) {bill_numbers} already settled'}},
+                }
+
         memo.generate_memo_bills_and_update_status()
-        
+
         ret = insert_memo_entry.insert_memo_entry(memo)
         if get_cls:
             if get_cls and ret['status'] == 'okay':
@@ -376,3 +402,79 @@ class MemoEntry(Entry):
             ret['id'] = memo_id
 
         return ret
+
+    @staticmethod
+    def check_add_bills_eligibility(memo_id: int) -> Dict:
+        """
+        A memo may only receive extra bills while it is still open: a Full-mode memo
+        whose dalali/commission has not been marked paid and which no dalali entry
+        has consumed. Returns {'eligible': bool, 'reason': Optional[str]}.
+        """
+        from API_Database.retrieve_memo_dalali import get_memo_dalali_payment, is_memo_used_by_dalali
+        memo_data = get_memo_entry(memo_id)
+        if memo_data['mode'] != 'Full':
+            return {'eligible': False, 'reason': 'Bills can only be added to Full memos'}
+        dalali_payment = get_memo_dalali_payment(memo_id)
+        if dalali_payment and dalali_payment.get('is_paid'):
+            return {'eligible': False, 'reason': 'Memo is already marked as paid'}
+        if is_memo_used_by_dalali(memo_id):
+            return {'eligible': False, 'reason': 'Memo is already used by a dalali entry'}
+        return {'eligible': True, 'reason': None}
+
+    @classmethod
+    def add_bills(cls, memo_id: int, bill_ids: List[int]) -> Dict:
+        """
+        Controlled memo edit: append fully-settled bills to an existing Full memo.
+        The memo amount grows by the bills' pending amounts and the commission is
+        recalculated on the new amount; existing bills, payments and deductions are
+        never touched.
+        """
+        from API_Database.update_memo_entry import update_memo_amount_and_commission
+
+        if not bill_ids:
+            return {'status': 'error', 'message': 'No bills provided'}
+
+        eligibility = cls.check_add_bills_eligibility(memo_id)
+        if not eligibility['eligible']:
+            return {'status': 'error', 'message': eligibility['reason']}
+
+        memo_data = get_memo_entry(memo_id)
+        existing_bill_ids = {bill['bill_id'] for bill in memo_data['memo_bills'] if bill['bill_id'] is not None}
+
+        bills = RegisterEntry.retrieve_by_id_list(bill_ids)
+        for bill in bills:
+            if bill.supplier_id != memo_data['supplier_id'] or bill.party_id != memo_data['party_id']:
+                return {'status': 'error',
+                        'message': f'Bill {bill.bill_number} belongs to a different supplier/party than the memo'}
+            if bill.get_id() in existing_bill_ids:
+                return {'status': 'error', 'message': f'Bill {bill.bill_number} is already part of this memo'}
+            if bill.status == 'F':
+                return {'status': 'error', 'message': f'Bill {bill.bill_number} is already settled by another memo'}
+
+        added_amount = 0
+        for bill in bills:
+            pending_amount = bill.get_pending_amount()
+            bill.status = 'F'
+            insert_memo_entry.insert_memo_bill(MemoBill(bill.get_id(), pending_amount, 'F'), memo_id)
+            bill.update()
+            added_amount += pending_amount
+
+        new_amount = int(memo_data['amount']) + added_amount
+        gst_percentage = memo_data.get('less_gst_percentage')
+        if gst_percentage is None:
+            from API_Database.retrieve_indivijual import get_supplier_gst_default
+            gst_percentage = get_supplier_gst_default(memo_data['supplier_id'])
+        rate_percent = get_commission_rate(memo_data['supplier_id'], memo_data['party_id'])
+        result = calculate_commission(new_amount, float(gst_percentage), rate_percent)
+        update_memo_amount_and_commission(
+            memo_id, new_amount, int(result['amount_without_gst']),
+            int(result['commission']), gst_percentage,
+        )
+
+        return {
+            'status': 'okay',
+            'message': f'{len(bills)} bill(s) added to memo',
+            'added_amount': added_amount,
+            'new_amount': new_amount,
+            'commision': int(result['commission']),
+        }

@@ -594,6 +594,31 @@ def add_memo_entry():
     response = MemoEntry.insert(data)
     return jsonify(response)
 
+@v1_bp.route('/memo_entry/<int:memo_id>/can_add_bills')
+@jwt_required()
+@permission_required('memo_entry', 'read')
+def can_add_bills_to_memo(memo_id: int):
+    """Reports whether bills can still be added to a memo (Full mode, not paid, not used by a dalali entry)."""
+    try:
+        result = MemoEntry.check_add_bills_eligibility(memo_id)
+        return jsonify({'status': 'okay', **result})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@v1_bp.route('/memo_entry/<int:memo_id>/add_bills', methods=['POST'])
+@jwt_required()
+@permission_required('memo_entry', 'update')
+def add_bills_to_memo(memo_id: int):
+    """Controlled memo edit: appends bills to an existing Full memo, growing its amount and recalculating commission."""
+    try:
+        data = request.json or {}
+        bill_ids = [int(bill['id']) if isinstance(bill, dict) else int(bill)
+                    for bill in data.get('selected_bills', [])]
+        response = MemoEntry.add_bills(memo_id, bill_ids)
+        return jsonify(response)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @v1_bp.route('/add/order_form', methods=['POST'])
 @jwt_required()
 @permission_required('order_form', 'create')

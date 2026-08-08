@@ -62,7 +62,7 @@ else:
     CORS(app)
 
 # Initialize JWT
-app.config['JSON_SORT_KEYS'] = False
+app.json.sort_keys = False  # JSON_SORT_KEYS is a no-op since Flask 2.3
 # JWT secret: must be set via JWT_SECRET_KEY env var in prod. Dev fallback only.
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY') or 'dev-only-secret-do-not-use-in-prod'
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)

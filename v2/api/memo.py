@@ -4,7 +4,7 @@ from ..models.memo import MemoEntry
 from ..services.memo import MemoService
 from ..extensions import db
 from pydantic import ValidationError
-from hca_backend.API_Database.retrieve_memo_dalali import calculate_commission
+from hca_backend.API_Database.retrieve_memo_dalali import calculate_commission, get_commission_rate
 from hca_backend.Exceptions import DataError
 
 memo_bp = Blueprint("memo", __name__, url_prefix="/api/memo")
@@ -72,7 +72,8 @@ def update_memo_commission(memo_id):
     
     # Use calculate_commission function to calculate values
     try:
-        result = calculate_commission(entry.amount, gst_percentage)
+        rate_percent = get_commission_rate(entry.supplier_id, entry.party_id)
+        result = calculate_commission(entry.amount, gst_percentage, rate_percent)
     except DataError as e:
         return jsonify({"error": str(e)}), 400
     

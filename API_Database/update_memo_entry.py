@@ -41,6 +41,20 @@ def update_memo_amount(id: int, custom_amount: int=0):
     db.commit()
     db.close()
 
+def update_memo_amount_and_commission(memo_id: int, amount: int, less_gst: int, commision: int, less_gst_percentage=None):
+    """
+    Update a memo's amount and recalculated commission fields (used when bills are
+    added to an existing memo). Uses execute_query so the audit trail is recorded.
+    """
+    query = (
+        f"UPDATE memo_entry SET amount = {int(amount)}, less_gst = {int(less_gst)}, "
+        f"commision = {int(commision)}"
+    )
+    if less_gst_percentage is not None:
+        query += f", less_gst_percentage = {float(less_gst_percentage)}"
+    query += f" WHERE id = {int(memo_id)}"
+    return execute_query(query)
+
 def update_memo_entry_from_obj(data: Dict):
     """Updates a memo entry using a provided data dictionary and returns the update status."""
     (db, cursor) = db_connector.cursor(True)

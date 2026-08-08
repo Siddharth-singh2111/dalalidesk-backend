@@ -1,6 +1,7 @@
 from typing import Dict
 import json
 from Reports import report
+from Reports.custom_reports import CUSTOM_REPORTS
 from API_Database import efficiency, retrieve_indivijual
 import sys
 sys.path.append('../')
@@ -31,5 +32,10 @@ def make_report(data: Dict) -> Dict:
         report_obj = report.Report(select, party_ids, supplier_ids, start_date, end_date)
         report_data = report_obj.generate_table(supplier_all=supplier_all, party_all=party_all)
         return report_data
+    elif select in CUSTOM_REPORTS:
+        return CUSTOM_REPORTS[select](
+            supplier_ids, party_ids, start_date, end_date,
+            supplier_all=supplier_all, party_all=party_all,
+        )
     else:
         raise Exception('Invalid Option')

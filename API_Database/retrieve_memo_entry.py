@@ -117,16 +117,18 @@ def get_memo_entry(memo_id: int) -> Dict:
             memo_payments_table.bank_id,
             bank_table.name.as_('bank_name'),
             memo_payments_table.cheque_number,
+            fn.ToChar(memo_payments_table.cheque_date, 'YYYY-MM-DD').as_('cheque_date'),
             memo_payments_table.amount
         )\
         .where(memo_payments_table.memo_id == memo_id)
-    
+
     payments_data = execute_query(select_query.get_sql())['result']
     payments = [
         {
             'bank_id': p['bank_id'],
             'bank_name': p['bank_name'],
             'cheque_number': p['cheque_number'],
+            'cheque_date': p.get('cheque_date'),
             'amount': p.get('amount', 0)
         }
         for p in payments_data
@@ -249,6 +251,8 @@ def get_memo_entry(memo_id: int) -> Dict:
         'discount': memo_data.get('discount', 0),
         'other_deduction': memo_data.get('other_deduction', 0),
         'rate_difference': memo_data.get('rate_difference', 0),
+        'additions': memo_data.get('additions', 0) or 0,
+        'additions_details': parse_json_field(memo_data.get('additions_details')),
         'less_details': {
             'gr_amount': parse_json_field(memo_data.get('gr_amount_details')),
             'discount': parse_json_field(memo_data.get('discount_details')),
@@ -355,11 +359,13 @@ def get_all_memo_entries_with_names(page=None, page_size=None, filters=None) -> 
         # Columns from memo_entry table to select and group by
         memo_entry_cols_select = [
             memo_entry_table.id, memo_entry_table.memo_number, memo_entry_table.supplier_id,
-            memo_entry_table.party_id, fn.ToChar(memo_entry_table.register_date, 'DD/MM/YYYY').as_('register_date'), 
-            memo_entry_table.amount, memo_entry_table.gr_amount, memo_entry_table.deduction, 
+            memo_entry_table.party_id, fn.ToChar(memo_entry_table.register_date, 'DD/MM/YYYY').as_('register_date'),
+            memo_entry_table.amount, memo_entry_table.gr_amount, memo_entry_table.deduction,
             memo_entry_table.discount, memo_entry_table.other_deduction, memo_entry_table.rate_difference,
+            memo_entry_table.additions,
             memo_entry_table.gr_amount_details, memo_entry_table.discount_details,
             memo_entry_table.other_deduction_details, memo_entry_table.rate_difference_details,
+            memo_entry_table.additions_details,
             memo_entry_table.notes, memo_entry_table.last_update, memo_entry_table.created_at,
             memo_entry_table.created_by, memo_entry_table.last_updated, memo_entry_table.last_updated_by,
             memo_entry_table.parent_dalali_id, memo_entry_table.parent_memo_id, 
@@ -372,8 +378,10 @@ def get_all_memo_entries_with_names(page=None, page_size=None, filters=None) -> 
             memo_entry_table.party_id, memo_entry_table.register_date, memo_entry_table.amount,
             memo_entry_table.gr_amount, memo_entry_table.deduction, memo_entry_table.discount,
             memo_entry_table.other_deduction, memo_entry_table.rate_difference,
+            memo_entry_table.additions,
             memo_entry_table.gr_amount_details, memo_entry_table.discount_details,
             memo_entry_table.other_deduction_details, memo_entry_table.rate_difference_details,
+            memo_entry_table.additions_details,
             memo_entry_table.notes, memo_entry_table.last_update, memo_entry_table.created_at,
             memo_entry_table.created_by, memo_entry_table.last_updated, memo_entry_table.last_updated_by,
             memo_entry_table.parent_dalali_id, memo_entry_table.parent_memo_id, 

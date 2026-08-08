@@ -35,7 +35,6 @@ class MemoService:
             return False, reason
             
         try:
-            # Start a transaction
             memo_entry = MemoEntry.query.get(memo_id)
             if not memo_entry:
                 return False, "Memo entry not found"
@@ -43,15 +42,12 @@ class MemoService:
             # Process each memo bill based on its type
             for bill in memo_entry.memo_bills:
                 if bill.type == "PR":
-                    # Handle part payment logic
                     part_payment = PartPayments.query.filter_by(memo_id=memo_id).first()
                     if part_payment:
                         if part_payment.used:
-                            return False, f"Cannot delete memo with used part payment. Used in Memo Number: {part_payment.use_memo.memo_number}"
-                        else:
-                            db.session.delete(part_payment)
+                            raise DataError(f"Cannot delete memo with used part payment. Used in Memo Number: {part_payment.use_memo.memo_number}")
+                        db.session.delete(part_payment)
                 else:
-                    # Reset register entry fields based on bill type
                     if bill.bill_id is not None:
                         register_entry = RegisterEntry.query.get(bill.bill_id)
                         if register_entry:
@@ -68,35 +64,28 @@ class MemoService:
                             if deleted_by:
                                 register_entry.last_updated_by = deleted_by
                 
-            # Delete all memo bills
             for bill in memo_entry.memo_bills:
                 db.session.delete(bill)
             
-            # Delete all memo payments
             for payment in memo_entry.memo_payments:
                 db.session.delete(payment)
             
-            # Handle part payments that originated from this memo
             for part_payment in memo_entry.part_payments_source:
                 if part_payment.used:
-                    return False, f"Cannot delete memo with used part payment. Used in Memo Number: {part_payment.use_memo.memo_number}"
+                    raise DataError(f"Cannot delete memo with used part payment. Used in Memo Number: {part_payment.use_memo.memo_number}")
                 db.session.delete(part_payment)
             
-            # Handle part payments that were used by this memo (set them back to unused)
             for part_payment in memo_entry.part_payments_used:
                 part_payment.used = False
                 part_payment.use_memo_id = None
             
-            # Handle any dalali bills associated with this memo
-            if memo_entry.dalali_bills:
-                return False, "Cannot delete memo with associated dalali bills"
-            
-            # Delete the memo entry itself
             db.session.delete(memo_entry)
             
-            # Commit the transaction
             db.session.commit()
             return True, "Memo deleted successfully"
+        except DataError as e:
+            db.session.rollback()
+            return False, e.error_dict.get("message", str(e))
         except Exception as e:
             db.session.rollback()
             return False, f"Error deleting memo: {str(e)}"

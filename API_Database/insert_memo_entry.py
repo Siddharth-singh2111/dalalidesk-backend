@@ -41,20 +41,24 @@ def insert_memo(entry: MemoEntry) -> None:
     discount_details_json = json.dumps(entry.discount_details) if entry.discount_details else None
     other_deduction_details_json = json.dumps(entry.other_deduction_details) if entry.other_deduction_details else None
     rate_difference_details_json = json.dumps(entry.rate_difference_details) if entry.rate_difference_details else None
+    additions_details_json = json.dumps(entry.additions_details) if entry.additions_details else None
     notes_json = json.dumps(entry.notes) if entry.notes else None
-    
+
     insert_query = Query.into(memo_entry_table).columns(
-        'supplier_id', 'party_id', 'memo_number', 'register_date', 'amount', 
+        'supplier_id', 'party_id', 'memo_number', 'register_date', 'amount',
         'gr_amount', 'deduction', 'discount', 'other_deduction', 'rate_difference',
-        'gr_amount_details', 'discount_details', 'other_deduction_details', 
-        'rate_difference_details', 'notes',
-        'parent_dalali_id', 'parent_memo_id', 'memo_type', 
+        'additions',
+        'gr_amount_details', 'discount_details', 'other_deduction_details',
+        'rate_difference_details', 'additions_details', 'notes',
+        'parent_dalali_id', 'parent_memo_id', 'memo_type',
         'less_gst_percentage', 'less_gst', 'commision'
     ).insert(
-        entry.supplier_id, entry.party_id, entry.memo_number, entry.register_date, 
-        entry.amount, entry.gr_amount, entry.deduction, entry.discount, 
-        entry.other_deduction, entry.rate_difference, gr_amount_details_json,
+        entry.supplier_id, entry.party_id, entry.memo_number, entry.register_date,
+        entry.amount, entry.gr_amount, entry.deduction, entry.discount,
+        entry.other_deduction, entry.rate_difference, entry.additions,
+        gr_amount_details_json,
         discount_details_json, other_deduction_details_json, rate_difference_details_json,
+        additions_details_json,
         notes_json, entry.parent_dalali_id, entry.parent_memo_id, entry.memo_type,
         entry.less_gst_percentage, entry.less_gst, entry.commision
     )
@@ -90,14 +94,15 @@ def insert_memo_payment(payment: Dict) -> None:
     Add the memo payments for the given memo_entry
     """
     memo_payments_table = Table('memo_payments')
-    
+
     # Default amount to 0 if not present
     amount = payment.get('amount', 0)
-    
+
     insert_query = Query.into(memo_payments_table).columns(
-        'memo_id', 'bank_id', 'cheque_number', 'amount'
+        'memo_id', 'bank_id', 'cheque_number', 'cheque_date', 'amount'
     ).insert(
-        payment['memo_id'], payment['bank_id'], payment['cheque_number'], amount
+        payment['memo_id'], payment['bank_id'], payment['cheque_number'],
+        payment.get('cheque_date'), amount
     )
     
     sql = insert_query.get_sql()

@@ -5,7 +5,37 @@ from datetime import datetime
 from typing import Optional, List
 
 
-ALLOWED_CITIES = ['Bangalore', 'Jaipur', 'Kolkata', 'Surat', 'Varanasi', 'Belgaum', 'Mumbai', 'Delhi', 'Mau']
+# Keep in sync with: the supplier_city_check DB constraint (migrations/expand_supplier_cities.sql
+# + API_Database/holani_cloth_agency.sql) and hca_frontend_v2/src/types/entities.ts CITIES.
+ALLOWED_CITIES = [
+    'Agra', 'Ahmedabad', 'Ajmer', 'Aligarh', 'Amritsar', 'Aurangabad', 'Balotra',
+    'Bangalore', 'Bareilly', 'Belgaum', 'Bhagalpur', 'Bhilwara', 'Bhiwandi', 'Bhopal',
+    'Burhanpur', 'Chandigarh', 'Chennai', 'Coimbatore', 'Dehradun', 'Delhi', 'Dhanbad',
+    'Erode', 'Faridabad', 'Ghaziabad', 'Gorakhpur', 'Gurugram', 'Guwahati', 'Gwalior',
+    'Hyderabad', 'Ichalkaranji', 'Indore', 'Jabalpur', 'Jaipur', 'Jalandhar', 'Jamnagar',
+    'Jodhpur', 'Kannauj', 'Kanpur', 'Karur', 'Kishangarh', 'Kochi', 'Kolkata', 'Kota',
+    'Lucknow', 'Ludhiana', 'Madurai', 'Malegaon', 'Mathura', 'Mau', 'Meerut', 'Moradabad',
+    'Mumbai', 'Mysore', 'Nagpur', 'Nashik', 'Noida', 'Pali', 'Panipat', 'Patna', 'Pune',
+    'Raipur', 'Rajkot', 'Ranchi', 'Salem', 'Solapur', 'Sonipat', 'Srinagar', 'Surat',
+    'Thane', 'Tiruppur', 'Udaipur', 'Ujjain', 'Vadodara', 'Varanasi', 'Vijayawada',
+    'Visakhapatnam',
+]
+
+class CommissionRate(db.Model):
+    """Per supplier+party commission override; absence of a row means the 2% default."""
+    __tablename__ = "commission_rates"
+
+    id: Mapped[int] = MappedColumn(db.Integer, primary_key=True)
+    supplier_id: Mapped[int] = MappedColumn(db.Integer, db.ForeignKey("supplier.id"), nullable=False)
+    party_id: Mapped[int] = MappedColumn(db.Integer, db.ForeignKey("party.id"), nullable=False)
+    rate_percent: Mapped[float] = MappedColumn(db.Numeric(5, 2), nullable=False)
+    created_at: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)
+    created_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    last_updated: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)
+    last_updated_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
+
+    __table_args__ = (db.UniqueConstraint("supplier_id", "party_id", name="commission_rates_supplier_party_key"),)
+
 
 class Supplier(db.Model):
     __tablename__ = "supplier"

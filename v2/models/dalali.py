@@ -266,6 +266,7 @@ class DalaliSenderPayments(db.Model):
     bank_id: Mapped[int] = MappedColumn(db.Integer, db.ForeignKey("bank.id"), nullable=False)
     amount: Mapped[Optional[float]] = MappedColumn(db.Numeric, nullable=True)
     cheque_number: Mapped[Optional[str]] = MappedColumn(db.String(50), nullable=True)
+    cheque_date: Mapped[Optional[datetime]] = MappedColumn(db.Date, nullable=True)
     created_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
     last_updated_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)
