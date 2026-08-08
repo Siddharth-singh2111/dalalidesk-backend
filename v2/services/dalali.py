@@ -96,6 +96,7 @@ class DalaliService:
                         bank_id=payment_data.get("bank_id"),
                         amount=payment_data.get("amount"),
                         cheque_number=payment_data.get("cheque_number"),
+                        cheque_date=payment_data.get("cheque_date") or None,
                         created_by=data.get("created_by")
                     )
                     db.session.add(sender_payment)
@@ -200,6 +201,7 @@ class DalaliService:
                         bank_id=payment_data.get("bank_id"),
                         amount=payment_data.get("amount"),
                         cheque_number=payment_data.get("cheque_number"),
+                        cheque_date=payment_data.get("cheque_date") or None,
                         created_by=data.get("last_updated_by"),
                         last_updated_by=data.get("last_updated_by")
                     )

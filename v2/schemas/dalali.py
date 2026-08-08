@@ -34,6 +34,7 @@ class DalaliSenderPaymentSchema(BaseSchema):
     id: Optional[int] = None
     bank_id: int
     cheque_number: str
+    cheque_date: Optional[date] = None
     amount: float
     bank_name: Optional[str] = None
 
@@ -153,6 +154,7 @@ class SettlementPaymentCreate(BaseSchema):
 class DalaliSenderPaymentCreate(BaseSchema):
     bank_id: int
     cheque_number: str
+    cheque_date: Optional[date] = None
     amount: int
 
     @field_validator("amount", mode="before")

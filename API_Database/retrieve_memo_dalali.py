@@ -7,7 +7,23 @@ import math
 import sys
 sys.path.append('../')
 
-def calculate_commission(amount: float, gst_percentage: float = 4.762) -> Dict[str, float]:
+def get_commission_rate(supplier_id: int, party_id: int) -> float:
+    """
+    Get the commission rate (percent) for a supplier+party pair from commission_rates,
+    falling back to the 2% default when no override exists (or the table is unreachable).
+    """
+    try:
+        rates = Table('commission_rates')
+        query = Query.from_(rates).select(rates.rate_percent)\
+            .where((rates.supplier_id == supplier_id) & (rates.party_id == party_id))
+        response = execute_query(query.get_sql())
+        if response.get('status') == 'okay' and response['result']:
+            return float(response['result'][0]['rate_percent'])
+    except Exception:
+        pass
+    return 2.0
+
+def calculate_commission(amount: float, gst_percentage: float = 4.762, rate_percent: float = 2.0) -> Dict[str, float]:
     """
     Calculate commission amount based on memo amount.
     
@@ -48,12 +64,16 @@ def calculate_commission(amount: float, gst_percentage: float = 4.762) -> Dict[s
 
     if gst_percentage != 4.762 and gst_percentage != 10.7:
         raise DataError("Invalid GST percentage: must be 5% or 12%.")
+    # Validate the commission rate (percent)
+    if not isinstance(rate_percent, (int, float)) or not math.isfinite(rate_percent) or not 0 <= rate_percent <= 100:
+        raise DataError("Invalid commission rate: must be a percentage between 0 and 100.")
+
     # Remove GST from amount
     amount_without_gst = amount - (amount * (gst_percentage / 100))
     amount_without_gst = math.ceil(amount_without_gst)
-    
-    # Calculate 2% commission on the amount after GST removal
-    commission = amount_without_gst * 0.02
+
+    # Commission on the amount after GST removal (default 2%, pair overrides via commission_rates)
+    commission = amount_without_gst * (rate_percent / 100)
     commission = math.ceil(commission)
     
     return {
@@ -80,6 +100,15 @@ def get_memo_dalali_payment(memo_id: int) -> Optional[Dict]:
         return None
     
     return response['result'][0]
+
+def is_memo_used_by_dalali(memo_id: int) -> bool:
+    """
+    Check whether a memo entry is referenced by any dalali entry (dalali_bills table).
+    """
+    dalali_bills = Table('dalali_bills')
+    query = Query.from_(dalali_bills).select(dalali_bills.id).where(dalali_bills.memo_id == memo_id)
+    response = execute_query(query.get_sql())
+    return len(response['result']) > 0
 
 def get_all_memo_entries_with_dalali(start_date: str = None, end_date: str = None) -> List[Dict]:
     """
@@ -133,10 +162,26 @@ def get_all_memo_entries_with_dalali(start_date: str = None, end_date: str = Non
     response = execute_query(sql)
     result = response['result']
     
+    # Bulk-load pair commission overrides so each row uses its supplier+party rate
+    rates_by_pair = {}
+    try:
+        rates_table = Table('commission_rates')
+        rates_query = Query.from_(rates_table).select(
+            rates_table.supplier_id, rates_table.party_id, rates_table.rate_percent)
+        rates_response = execute_query(rates_query.get_sql())
+        if rates_response.get('status') == 'okay':
+            rates_by_pair = {
+                (row['supplier_id'], row['party_id']): float(row['rate_percent'])
+                for row in rates_response['result']
+            }
+    except Exception:
+        pass
+
     # Calculate commission amount and amount without GST for each memo entry
     for entry in result:
         if entry['amount'] is not None:
-            commission_result = calculate_commission(float(entry['amount']))
+            rate_percent = rates_by_pair.get((entry['supplier_id'], entry['party_id']), 2.0)
+            commission_result = calculate_commission(float(entry['amount']), rate_percent=rate_percent)
             entry['amount_without_gst'] = commission_result['amount_without_gst']
             entry['commission_amount'] = commission_result['commission']
         else:
