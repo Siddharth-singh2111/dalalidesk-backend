@@ -296,9 +296,108 @@ def supplier_wise_outstanding(supplier_ids: List[int], party_ids: List[int],
     return data
 
 
+def local_dispatch_summary(supplier_ids: List[int], party_ids: List[int],
+                           start_date: str, end_date: str,
+                           supplier_all: bool = False, party_all: bool = False,
+                           transport: Optional[str] = None) -> Dict:
+    """
+    Local party bills dispatched from the office, grouped by dispatch day.
+    Mirrors the physical Dispatch Pad. One row per dispatched bill with:
+    Bill No, Bill Date, Party, Supplier, L.R. No., Transport, No. of Bills
+    (count within its dispatch slip), Dispatch Date and User (who recorded it).
+
+    Filters: date range (dispatch date), party (party_ids), transport (name ILIKE).
+    """
+    start = sql_date(parse_date(start_date))
+    end = sql_date(parse_date(end_date))
+    transport_clause = ''
+    if transport:
+        safe = str(transport).replace("'", "''")
+        transport_clause = f" AND db.transport_name ILIKE '%{safe}%'"
+    query = f"""
+        SELECT d.dispatch_date,
+               d.serial_number,
+               p.name AS party_name,
+               s.name AS supplier_name,
+               db.bill_number,
+               db.bill_date,
+               db.lr_number,
+               db.transport_name,
+               COALESCE(u.full_name, '-') AS user_name,
+               cnt.bills_in_dispatch
+        FROM dispatch_bill db
+        JOIN dispatch d ON db.dispatch_id = d.id
+        LEFT JOIN party p ON d.party_id = p.id
+        LEFT JOIN supplier s ON db.supplier_id = s.id
+        LEFT JOIN users u ON d.created_by = u.id
+        JOIN (SELECT dispatch_id, COUNT(*) AS bills_in_dispatch
+              FROM dispatch_bill GROUP BY dispatch_id) cnt
+              ON cnt.dispatch_id = d.id
+        WHERE d.dispatch_date >= '{start}' AND d.dispatch_date <= '{end}'
+        {_id_filter('d.party_id', party_ids, party_all)}
+        {_id_filter('db.supplier_id', supplier_ids, supplier_all)}
+        {transport_clause}
+        ORDER BY d.dispatch_date, d.serial_number NULLS LAST, d.id, db.bill_number
+    """
+    rows = execute_query(query)['result']
+
+    data = _base('Local Dispatch Summary', start, end)
+    grand_bills = 0
+    current_day: Optional[str] = None
+    current_heading: Optional[Dict] = None
+
+    def close_day():
+        if current_heading is not None:
+            sub = current_heading['subheadings'][0]
+            sub['specialRows'] = [
+                {'name': 'Bills (=) ', 'value': str(len(sub['dataRows'])),
+                 'column': 'bill_no', 'beforeData': False},
+            ]
+            current_heading['cumulative'] = {'name': 'Bills Dispatched',
+                                             'value': str(len(sub['dataRows']))}
+            data['headings'].append(current_heading)
+
+    for row in rows:
+        day = _fmt_date(row['dispatch_date'])
+        if day != current_day:
+            close_day()
+            current_day = day
+            current_heading = {
+                'title': f'Dispatched on {day}',
+                'subheadings': [{'title': '', 'dataRows': [], 'specialRows': [],
+                                 'displayOnIndex': True}],
+            }
+        current_heading['subheadings'][0]['dataRows'].append({
+            'bill_no': row['bill_number'],
+            'bill_date': _fmt_date(row['bill_date']),
+            'party': row['party_name'] or '-',
+            'supplier': row['supplier_name'] or '-',
+            'lr_no': row['lr_number'] or '-',
+            'transport': row['transport_name'] or '-',
+            'num_bills': int(row['bills_in_dispatch'] or 0),
+            'dispatch_date': day,
+            'user': row['user_name'],
+        })
+        grand_bills += 1
+    close_day()
+
+    if grand_bills:
+        data['headings'].append({
+            'title': 'Grand Total',
+            'subheadings': [{
+                'title': '',
+                'dataRows': [{'total_bills_dispatched': grand_bills}],
+                'specialRows': [],
+                'displayOnIndex': False,
+            }],
+        })
+    return data
+
+
 CUSTOM_REPORTS = {
     'bills_added_report': bills_added_report,
     'supplier_wise_sale': supplier_wise_sale,
     'buyer_wise_sale': buyer_wise_sale,
     'supplier_wise_outstanding': supplier_wise_outstanding,
+    'local_dispatch_summary': local_dispatch_summary,
 }

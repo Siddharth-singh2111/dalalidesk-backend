@@ -45,7 +45,8 @@ def audit_after_flush(session: Session, flush_context):
         changes = {}
         for c in obj.__table__.columns:
             val = getattr(obj, c.name)
-            if isinstance(val, datetime.datetime):
+            # datetime is a subclass of date, so check it first.
+            if isinstance(val, (datetime.datetime, datetime.date)):
                 changes[c.name] = val.isoformat()
             else:
                 changes[c.name] = val
@@ -61,7 +62,8 @@ def audit_after_flush(session: Session, flush_context):
     for obj, diffs in getattr(session, '_objects_to_audit_dirty', []):
         serialized_diffs = {}
         for key, value in diffs.items():
-            if isinstance(value, datetime.datetime):
+            # datetime is a subclass of date, so check it first.
+            if isinstance(value, (datetime.datetime, datetime.date)):
                 serialized_diffs[key] = value.isoformat()
             else:
                 serialized_diffs[key] = value

@@ -33,9 +33,11 @@ def make_report(data: Dict) -> Dict:
         report_data = report_obj.generate_table(supplier_all=supplier_all, party_all=party_all)
         return report_data
     elif select in CUSTOM_REPORTS:
+        kwargs = dict(supplier_all=supplier_all, party_all=party_all)
+        if select == 'local_dispatch_summary':
+            kwargs['transport'] = data.get('transport') or None
         return CUSTOM_REPORTS[select](
-            supplier_ids, party_ids, start_date, end_date,
-            supplier_all=supplier_all, party_all=party_all,
+            supplier_ids, party_ids, start_date, end_date, **kwargs,
         )
     else:
         raise Exception('Invalid Option')
