@@ -582,6 +582,9 @@ def add_register_entry():
     """Inserts a register entry into the database using POST data and returns the insertion result."""
 
     data = request.json
+    # Stamp the creator so dispatch reports can show who recorded the bill.
+    if data.get('created_by') is None:
+        data['created_by'] = get_user_id_from_token()
     response = RegisterEntry.insert(data)
     return jsonify(response)
 

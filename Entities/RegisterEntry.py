@@ -40,7 +40,7 @@ class RegisterEntry(Entry):
     partial_amount: int
     _report_attribute_map = {'bill_number': 'bill_no', 'register_date': 'bill_date', 'amount': 'bill_amt', 'status': 'bill_status'}
 
-    def __init__(self, bill_number: int, amount: int, supplier_id: int, party_id: int, register_date: Union[str, datetime], status: str='N', gr_amount: int=0, deduction: int=0, partial_amount: int=0, table_name='register_entry', *args, **kwargs) -> None:
+    def __init__(self, bill_number: int, amount: int, supplier_id: int, party_id: int, register_date: Union[str, datetime], status: str='N', gr_amount: int=0, deduction: int=0, partial_amount: int=0, lr_number: str=None, transport_name: str=None, table_name='register_entry', *args, **kwargs) -> None:
         """Initializes a RegisterEntry with bill number, amount, supplier and party IDs, register date, status, and payment details."""
         super().__init__(*args, table_name=table_name, **kwargs)
         self.bill_number = bill_number
@@ -52,6 +52,9 @@ class RegisterEntry(Entry):
         self.deduction = deduction
         self.status = status
         self.partial_amount = partial_amount
+        # Optional dispatch fields (blank strings normalised to None).
+        self.lr_number = lr_number or None
+        self.transport_name = transport_name or None
 
     def get_pending_amount(self) -> int:
         """Calculates and returns the pending amount after subtracting gr_amount, deduction, and partial_amount from the total amount."""

@@ -306,38 +306,76 @@ def local_dispatch_summary(supplier_ids: List[int], party_ids: List[int],
     Bill No, Bill Date, Party, Supplier, L.R. No., Transport, No. of Bills
     (count within its dispatch slip), Dispatch Date and User (who recorded it).
 
-    Filters: date range (dispatch date), party (party_ids), transport (name ILIKE).
+    Sources (unioned, de-duplicated):
+      1. Dispatch Pad slips (dispatch / dispatch_bill), grouped by dispatch date.
+      2. Register entries with an L.R. No. or transport filled in directly on the
+         bill, grouped by the day the entry was recorded (created_at).
+
+    Filters: date range (grouping day), party (party_ids), supplier, transport.
     """
     start = sql_date(parse_date(start_date))
     end = sql_date(parse_date(end_date))
-    transport_clause = ''
-    if transport:
+
+    def transport_clause(col: str) -> str:
+        if not transport:
+            return ''
         safe = str(transport).replace("'", "''")
-        transport_clause = f" AND db.transport_name ILIKE '%{safe}%'"
+        return f" AND {col} ILIKE '%{safe}%'"
+
     query = f"""
-        SELECT d.dispatch_date,
-               d.serial_number,
-               p.name AS party_name,
-               s.name AS supplier_name,
-               db.bill_number,
-               db.bill_date,
-               db.lr_number,
-               db.transport_name,
-               COALESCE(u.full_name, '-') AS user_name,
-               cnt.bills_in_dispatch
-        FROM dispatch_bill db
-        JOIN dispatch d ON db.dispatch_id = d.id
-        LEFT JOIN party p ON d.party_id = p.id
-        LEFT JOIN supplier s ON db.supplier_id = s.id
-        LEFT JOIN users u ON d.created_by = u.id
-        JOIN (SELECT dispatch_id, COUNT(*) AS bills_in_dispatch
-              FROM dispatch_bill GROUP BY dispatch_id) cnt
-              ON cnt.dispatch_id = d.id
-        WHERE d.dispatch_date >= '{start}' AND d.dispatch_date <= '{end}'
-        {_id_filter('d.party_id', party_ids, party_all)}
-        {_id_filter('db.supplier_id', supplier_ids, supplier_all)}
-        {transport_clause}
-        ORDER BY d.dispatch_date, d.serial_number NULLS LAST, d.id, db.bill_number
+        SELECT * FROM (
+            -- 1. Dispatch Pad slips
+            SELECT d.dispatch_date AS day_date,
+                   d.serial_number AS serial_number,
+                   p.name AS party_name,
+                   s.name AS supplier_name,
+                   db.bill_number AS bill_number,
+                   db.bill_date AS bill_date,
+                   db.lr_number AS lr_number,
+                   db.transport_name AS transport_name,
+                   COALESCE(u.full_name, '-') AS user_name,
+                   cnt.bills_in_dispatch AS num_bills,
+                   0 AS src_order
+            FROM dispatch_bill db
+            JOIN dispatch d ON db.dispatch_id = d.id
+            LEFT JOIN party p ON d.party_id = p.id
+            LEFT JOIN supplier s ON db.supplier_id = s.id
+            LEFT JOIN users u ON d.created_by = u.id
+            JOIN (SELECT dispatch_id, COUNT(*) AS bills_in_dispatch
+                  FROM dispatch_bill GROUP BY dispatch_id) cnt
+                  ON cnt.dispatch_id = d.id
+            WHERE d.dispatch_date >= '{start}' AND d.dispatch_date <= '{end}'
+            {_id_filter('d.party_id', party_ids, party_all)}
+            {_id_filter('db.supplier_id', supplier_ids, supplier_all)}
+            {transport_clause('db.transport_name')}
+
+            UNION ALL
+
+            -- 2. Register entries with dispatch details filled on the bill
+            SELECT DATE(re.created_at) AS day_date,
+                   CAST(NULL AS INTEGER) AS serial_number,
+                   p.name AS party_name,
+                   s.name AS supplier_name,
+                   re.bill_number AS bill_number,
+                   re.register_date AS bill_date,
+                   re.lr_number AS lr_number,
+                   re.transport_name AS transport_name,
+                   COALESCE(u.full_name, '-') AS user_name,
+                   COUNT(*) OVER (PARTITION BY DATE(re.created_at), re.party_id) AS num_bills,
+                   1 AS src_order
+            FROM register_entry re
+            LEFT JOIN party p ON re.party_id = p.id
+            LEFT JOIN supplier s ON re.supplier_id = s.id
+            LEFT JOIN users u ON re.created_by = u.id
+            WHERE (re.lr_number IS NOT NULL OR re.transport_name IS NOT NULL)
+              AND re.id NOT IN (SELECT register_entry_id FROM dispatch_bill
+                                WHERE register_entry_id IS NOT NULL)
+              AND DATE(re.created_at) >= '{start}' AND DATE(re.created_at) <= '{end}'
+            {_id_filter('re.party_id', party_ids, party_all)}
+            {_id_filter('re.supplier_id', supplier_ids, supplier_all)}
+            {transport_clause('re.transport_name')}
+        ) combined
+        ORDER BY day_date, src_order, serial_number NULLS LAST, bill_number
     """
     rows = execute_query(query)['result']
 
@@ -358,7 +396,7 @@ def local_dispatch_summary(supplier_ids: List[int], party_ids: List[int],
             data['headings'].append(current_heading)
 
     for row in rows:
-        day = _fmt_date(row['dispatch_date'])
+        day = _fmt_date(row['day_date'])
         if day != current_day:
             close_day()
             current_day = day
@@ -374,7 +412,7 @@ def local_dispatch_summary(supplier_ids: List[int], party_ids: List[int],
             'supplier': row['supplier_name'] or '-',
             'lr_no': row['lr_number'] or '-',
             'transport': row['transport_name'] or '-',
-            'num_bills': int(row['bills_in_dispatch'] or 0),
+            'num_bills': int(row['num_bills'] or 0),
             'dispatch_date': day,
             'user': row['user_name'],
         })

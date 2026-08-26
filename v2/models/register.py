@@ -34,7 +34,11 @@ class RegisterEntry(db.Model):
     deduction: Mapped[int] = MappedColumn(db.Integer, default=0, nullable=False)
     status: Mapped[str] = MappedColumn(db.String(2), default="N", nullable=False)
     partial_amount: Mapped[int] = MappedColumn(db.Integer, default=0, nullable=False)
-    
+
+    # Optional dispatch details captured on the bill itself (see Local Dispatch report).
+    lr_number: Mapped[Optional[str]] = MappedColumn(db.String(50), nullable=True)
+    transport_name: Mapped[Optional[str]] = MappedColumn(db.String(100), nullable=True)
+
     created_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
     last_updated_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)

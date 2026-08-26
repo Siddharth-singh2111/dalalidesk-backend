@@ -114,7 +114,10 @@ def insert_register_entry(entry) -> None:
         'bill_number',
         'status',
         'gr_amount',
-        'deduction'
+        'deduction',
+        'lr_number',
+        'transport_name',
+        'created_by'
     ).insert(
         entry.supplier_id,
         entry.party_id,
@@ -123,7 +126,10 @@ def insert_register_entry(entry) -> None:
         entry.bill_number,
         entry.status,
         entry.gr_amount,
-        entry.deduction
+        entry.deduction,
+        getattr(entry, 'lr_number', None),
+        getattr(entry, 'transport_name', None),
+        getattr(entry, 'created_by', None)
     )
 
     # Get the raw SQL query and parameters from the Pypika query

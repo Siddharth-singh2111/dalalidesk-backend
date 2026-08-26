@@ -34,38 +34,60 @@ def generate_local_dispatch_excel():
         start = sql_date(parse_date(start))
         end = sql_date(parse_date(end))
 
-        clauses = [f"d.dispatch_date >= '{start}'", f"d.dispatch_date <= '{end}'"]
         party_ids = request.args.get('party_ids')
+        party_id_list = ''
         if party_ids:
-            ids = ','.join(str(int(x)) for x in party_ids.split(',') if x.strip())
-            if ids:
-                clauses.append(f"d.party_id IN ({ids})")
+            party_id_list = ','.join(str(int(x)) for x in party_ids.split(',') if x.strip())
         transport = request.args.get('transport')
-        if transport:
-            safe = transport.replace("'", "''")
-            clauses.append(f"db.transport_name ILIKE '%{safe}%'")
+        safe_transport = transport.replace("'", "''") if transport else None
 
-        where = ' AND '.join(clauses)
+        def party_clause(col):
+            return f" AND {col} IN ({party_id_list})" if party_id_list else ''
+
+        def transport_clause(col):
+            return f" AND {col} ILIKE '%{safe_transport}%'" if safe_transport else ''
+
         query = f"""
-            SELECT db.bill_number AS "Bill No",
-                   db.bill_date AS "Bill Date",
-                   p.name AS "Party Name",
-                   s.name AS "Supplier",
-                   db.lr_number AS "L.R. No.",
-                   db.transport_name AS "Transport",
-                   cnt.bills_in_dispatch AS "No. of Bills",
-                   d.dispatch_date AS "Dispatch Date",
-                   COALESCE(u.full_name, '-') AS "User"
-            FROM dispatch_bill db
-            JOIN dispatch d ON db.dispatch_id = d.id
-            LEFT JOIN party p ON d.party_id = p.id
-            LEFT JOIN supplier s ON db.supplier_id = s.id
-            LEFT JOIN users u ON d.created_by = u.id
-            JOIN (SELECT dispatch_id, COUNT(*) AS bills_in_dispatch
-                  FROM dispatch_bill GROUP BY dispatch_id) cnt
-                  ON cnt.dispatch_id = d.id
-            WHERE {where}
-            ORDER BY d.dispatch_date, d.serial_number NULLS LAST, d.id, db.bill_number
+            SELECT * FROM (
+                SELECT db.bill_number AS "Bill No",
+                       db.bill_date AS "Bill Date",
+                       p.name AS "Party Name",
+                       s.name AS "Supplier",
+                       db.lr_number AS "L.R. No.",
+                       db.transport_name AS "Transport",
+                       cnt.bills_in_dispatch AS "No. of Bills",
+                       d.dispatch_date AS "Dispatch Date",
+                       COALESCE(u.full_name, '-') AS "User",
+                       d.serial_number AS _serial, 0 AS _src
+                FROM dispatch_bill db
+                JOIN dispatch d ON db.dispatch_id = d.id
+                LEFT JOIN party p ON d.party_id = p.id
+                LEFT JOIN supplier s ON db.supplier_id = s.id
+                LEFT JOIN users u ON d.created_by = u.id
+                JOIN (SELECT dispatch_id, COUNT(*) AS bills_in_dispatch
+                      FROM dispatch_bill GROUP BY dispatch_id) cnt
+                      ON cnt.dispatch_id = d.id
+                WHERE d.dispatch_date >= '{start}' AND d.dispatch_date <= '{end}'
+                {party_clause('d.party_id')}{transport_clause('db.transport_name')}
+
+                UNION ALL
+
+                SELECT re.bill_number, re.register_date, p.name, s.name,
+                       re.lr_number, re.transport_name,
+                       COUNT(*) OVER (PARTITION BY DATE(re.created_at), re.party_id),
+                       DATE(re.created_at), COALESCE(u.full_name, '-'),
+                       CAST(NULL AS INTEGER), 1
+                FROM register_entry re
+                LEFT JOIN party p ON re.party_id = p.id
+                LEFT JOIN supplier s ON re.supplier_id = s.id
+                LEFT JOIN users u ON re.created_by = u.id
+                WHERE (re.lr_number IS NOT NULL OR re.transport_name IS NOT NULL)
+                  AND re.id NOT IN (SELECT register_entry_id FROM dispatch_bill
+                                    WHERE register_entry_id IS NOT NULL)
+                  AND DATE(re.created_at) >= '{start}' AND DATE(re.created_at) <= '{end}'
+                {party_clause('re.party_id')}{transport_clause('re.transport_name')}
+            ) combined
+            ORDER BY "Dispatch Date", _src, _serial NULLS LAST, "Bill No"
         """
         rows = execute_query(query)['result']
         df = pd.DataFrame(rows, columns=[
