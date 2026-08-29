@@ -171,7 +171,11 @@ class DispatchService:
                         limit: int = 500) -> List[Dict]:
         """
         Register-entry bills for a party, to pull into a dispatch. Optionally
-        restricted to a single bill day, or a bill-date range.
+        restricted to a single feeding day, or a feeding-date range.
+
+        ``register_date`` is the date printed on the bill, while ``created_at``
+        records when the bill was fed into DalaliDesk. Dispatch preparation is
+        based on the latter, but still returns the bill date for display.
         """
         q = (
             db.session.query(RegisterEntry, Supplier.name)
@@ -180,23 +184,26 @@ class DispatchService:
         )
         single = _parse_date(day)
         if single:
-            q = q.filter(func.date(RegisterEntry.register_date) == single)
+            q = q.filter(func.date(RegisterEntry.created_at) == single)
         else:
             fd = _parse_date(from_date)
             td = _parse_date(to_date)
             if fd:
-                q = q.filter(func.date(RegisterEntry.register_date) >= fd)
+                q = q.filter(func.date(RegisterEntry.created_at) >= fd)
             if td:
-                q = q.filter(func.date(RegisterEntry.register_date) <= td)
-        q = q.order_by(RegisterEntry.register_date, RegisterEntry.bill_number).limit(limit)
+                q = q.filter(func.date(RegisterEntry.created_at) <= td)
+        q = q.order_by(RegisterEntry.created_at, RegisterEntry.bill_number).limit(limit)
         return [
             {
                 "register_entry_id": re.id,
                 "bill_number": re.bill_number,
                 "bill_date": re.register_date.strftime("%Y-%m-%d") if re.register_date else None,
+                "feeding_date": re.created_at.strftime("%Y-%m-%d") if re.created_at else None,
                 "supplier_id": re.supplier_id,
                 "supplier_name": sname,
                 "amount": re.amount,
+                "lr_number": re.lr_number,
+                "transport_name": re.transport_name,
             }
             for re, sname in q.all()
         ]

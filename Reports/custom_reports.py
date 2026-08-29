@@ -301,7 +301,8 @@ def local_dispatch_summary(supplier_ids: List[int], party_ids: List[int],
                            supplier_all: bool = False, party_all: bool = False,
                            transport: Optional[str] = None) -> Dict:
     """
-    Local party bills dispatched from the office, grouped by dispatch day.
+    Local bills dispatched from the office, grouped by party and ordered by
+    dispatch day within each party.
     Mirrors the physical Dispatch Pad. One row per dispatched bill with:
     Bill No, Bill Date, Party, Supplier, L.R. No., Transport, No. of Bills
     (count within its dispatch slip), Dispatch Date and User (who recorded it).
@@ -375,16 +376,16 @@ def local_dispatch_summary(supplier_ids: List[int], party_ids: List[int],
             {_id_filter('re.supplier_id', supplier_ids, supplier_all)}
             {transport_clause('re.transport_name')}
         ) combined
-        ORDER BY day_date, src_order, serial_number NULLS LAST, bill_number
+        ORDER BY party_name, day_date, src_order, serial_number NULLS LAST, bill_number
     """
     rows = execute_query(query)['result']
 
     data = _base('Local Dispatch Summary', start, end)
     grand_bills = 0
-    current_day: Optional[str] = None
+    current_party: Optional[str] = None
     current_heading: Optional[Dict] = None
 
-    def close_day():
+    def close_party():
         if current_heading is not None:
             sub = current_heading['subheadings'][0]
             sub['specialRows'] = [
@@ -397,11 +398,12 @@ def local_dispatch_summary(supplier_ids: List[int], party_ids: List[int],
 
     for row in rows:
         day = _fmt_date(row['day_date'])
-        if day != current_day:
-            close_day()
-            current_day = day
+        party = row['party_name'] or '-'
+        if party != current_party:
+            close_party()
+            current_party = party
             current_heading = {
-                'title': f'Dispatched on {day}',
+                'title': f'Party Name: {party}',
                 'subheadings': [{'title': '', 'dataRows': [], 'specialRows': [],
                                  'displayOnIndex': True}],
             }
@@ -417,7 +419,7 @@ def local_dispatch_summary(supplier_ids: List[int], party_ids: List[int],
             'user': row['user_name'],
         })
         grand_bills += 1
-    close_day()
+    close_party()
 
     if grand_bills:
         data['headings'].append({

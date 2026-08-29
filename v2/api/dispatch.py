@@ -52,7 +52,7 @@ def list_transports():
 def available_bills():
     """
     Bills for a party to pull into a dispatch.
-    Query: party_id (required), date (single day) OR from/to (bill-date range).
+    Query: party_id (required), date (single day) OR from/to (feeding-date range).
     """
     party_id = request.args.get("party_id", type=int)
     if not party_id:
