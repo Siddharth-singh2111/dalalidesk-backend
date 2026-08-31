@@ -111,6 +111,73 @@ def generate_local_dispatch_excel():
         return jsonify({"error": "Failed to generate local dispatch excel"}), 500
 
 
+@reports_bp.route('/commission-summary', methods=['GET'])
+def generate_commission_summary_excel():
+    """
+    Commission Summary (brokerage payment detail) as an Excel download.
+    One row per memo payment (cheque), grouped/filtered by cheque date.
+
+    Query Parameters (all optional):
+        from, to      : cheque-date range (YYYY-MM-DD)
+        supplier_ids  : comma-separated supplier ids
+        party_ids     : comma-separated party ids
+    """
+    import pandas as pd
+    from psql import execute_query
+    from API_Database import parse_date, sql_date
+    from ..reports.utils import generate_excel_file
+
+    try:
+        start = sql_date(parse_date(request.args.get('from') or '2000-01-01'))
+        end = sql_date(parse_date(request.args.get('to') or '2100-12-31'))
+
+        def id_clause(col, param):
+            raw = request.args.get(param)
+            if not raw:
+                return ''
+            ids = ','.join(str(int(x)) for x in raw.split(',') if x.strip())
+            return f" AND {col} IN ({ids})" if ids else ''
+
+        query = f"""
+            SELECT s.name AS "Supplier",
+                   m.memo_number AS "Memo No",
+                   mp.cheque_date AS "Chq Date",
+                   p.name AS "Name of Buyer",
+                   (m.amount - COALESCE(m.less_gst, 0)) AS "Amt after GST",
+                   m.less_gst_percentage AS "GST %",
+                   mp.amount AS "Chq Amt",
+                   COALESCE(m.commision, 0) AS "Brokerage"
+            FROM memo_payments mp
+            JOIN memo_entry m ON mp.memo_id = m.id
+            LEFT JOIN supplier s ON m.supplier_id = s.id
+            LEFT JOIN party p ON m.party_id = p.id
+            WHERE mp.cheque_date >= '{start}' AND mp.cheque_date <= '{end}'
+            {id_clause('m.supplier_id', 'supplier_ids')}
+            {id_clause('m.party_id', 'party_ids')}
+            ORDER BY s.name, mp.cheque_date, m.memo_number
+        """
+        rows = execute_query(query)['result']
+        df = pd.DataFrame(rows, columns=[
+            "Supplier", "Memo No", "Chq Date", "Name of Buyer",
+            "Amt after GST", "GST %", "Chq Amt", "Brokerage",
+        ])
+        excel_file = generate_excel_file(df, sheet_name="Commission Summary")
+        filename = f"Commission_Summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        return send_file(
+            excel_file,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=filename,
+        )
+    except Exception as e:
+        stack_trace = traceback.format_exc()
+        current_app.logger.error(f"Error generating commission summary excel: {str(e)}\n{stack_trace}")
+        if current_app.debug:
+            return jsonify({"error": "Failed to generate commission summary excel",
+                            "details": str(e), "stack_trace": stack_trace}), 500
+        return jsonify({"error": "Failed to generate commission summary excel"}), 500
+
+
 @reports_bp.route('/dalali-memo', methods=['GET'])
 def generate_dalali_memo_report():
     """

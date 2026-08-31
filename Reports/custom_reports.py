@@ -434,10 +434,110 @@ def local_dispatch_summary(supplier_ids: List[int], party_ids: List[int],
     return data
 
 
+def commission_summary(supplier_ids: List[int], party_ids: List[int],
+                       start_date: str, end_date: str,
+                       supplier_all: bool = False, party_all: bool = False) -> Dict:
+    """
+    Brokerage (commission) payment detail — one slip per supplier. For each memo
+    payment (cheque) it lists the buyer, the post-GST bill amount, the cheque
+    amount and the memo's brokerage, with a per-supplier brokerage + cheque total.
+
+    Filtered and grouped by cheque date. Brokerage is counted once per memo even
+    if the memo was paid by several cheques.
+    """
+    start = sql_date(parse_date(start_date))
+    end = sql_date(parse_date(end_date))
+    query = f"""
+        SELECT s.name AS supplier_name,
+               m.id AS memo_id,
+               m.memo_number,
+               p.name AS party_name,
+               (m.amount - COALESCE(m.less_gst, 0)) AS amt_after_gst,
+               m.less_gst_percentage AS gst_pct,
+               mp.cheque_date,
+               mp.amount AS cheque_amt,
+               COALESCE(m.commision, 0) AS brokerage
+        FROM memo_payments mp
+        JOIN memo_entry m ON mp.memo_id = m.id
+        LEFT JOIN supplier s ON m.supplier_id = s.id
+        LEFT JOIN party p ON m.party_id = p.id
+        WHERE mp.cheque_date >= '{start}' AND mp.cheque_date <= '{end}'
+        {_id_filter('m.supplier_id', supplier_ids, supplier_all)}
+        {_id_filter('m.party_id', party_ids, party_all)}
+        ORDER BY s.name, mp.cheque_date, m.memo_number
+    """
+    rows = execute_query(query)['result']
+
+    data = _base('Commission Summary', start, end)
+    grand_brokerage = 0
+    current_supplier: Optional[str] = None
+    current_heading: Optional[Dict] = None
+    state = {'seen': set(), 'broker': 0, 'chq': 0}
+
+    def close_supplier():
+        if current_heading is not None:
+            sub = current_heading['subheadings'][0]
+            sub['specialRows'] = [
+                _total_row('Chq Total (=) ', state['chq'], 'chq_amt'),
+                _total_row('Brokerage (=) ', state['broker'], 'brokerage'),
+            ]
+            current_heading['cumulative'] = {'name': 'Brokerage',
+                                             'value': _fmt(state['broker'])}
+            data['headings'].append(current_heading)
+
+    for row in rows:
+        supplier = row['supplier_name'] or '-'
+        if supplier != current_supplier:
+            close_supplier()
+            current_supplier = supplier
+            current_heading = {
+                'title': supplier,
+                'subheadings': [{'title': '', 'dataRows': [], 'specialRows': [],
+                                 'displayOnIndex': True}],
+            }
+            state = {'seen': set(), 'broker': 0, 'chq': 0}
+
+        memo_id = row['memo_id']
+        brokerage = int(row['brokerage'] or 0)
+        is_first_cheque = memo_id not in state['seen']
+        state['seen'].add(memo_id)
+        if is_first_cheque:  # count brokerage once per memo
+            state['broker'] += brokerage
+            grand_brokerage += brokerage
+        chq_amt = int(row['cheque_amt'] or 0)
+        state['chq'] += chq_amt
+        gst_pct = row['gst_pct']
+
+        current_heading['subheadings'][0]['dataRows'].append({
+            'memo_no': row['memo_number'],
+            'chq_date': _fmt_date(row['cheque_date']),
+            'buyer': row['party_name'] or '-',
+            'amt_after_gst': _fmt(row['amt_after_gst']),
+            'gst_pct': (f"{float(gst_pct):g}%" if gst_pct is not None else '-'),
+            'chq_amt': _fmt(chq_amt),
+            # Brokerage shown once per memo so the rows sum to the total.
+            'brokerage': _fmt(brokerage) if is_first_cheque else '',
+        })
+    close_supplier()
+
+    if data['headings']:
+        data['headings'].append({
+            'title': 'Grand Total',
+            'subheadings': [{
+                'title': '',
+                'dataRows': [{'total_brokerage': _fmt(grand_brokerage)}],
+                'specialRows': [],
+                'displayOnIndex': False,
+            }],
+        })
+    return data
+
+
 CUSTOM_REPORTS = {
     'bills_added_report': bills_added_report,
     'supplier_wise_sale': supplier_wise_sale,
     'buyer_wise_sale': buyer_wise_sale,
     'supplier_wise_outstanding': supplier_wise_outstanding,
     'local_dispatch_summary': local_dispatch_summary,
+    'commission_summary': commission_summary,
 }
