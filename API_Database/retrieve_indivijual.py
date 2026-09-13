@@ -11,11 +11,11 @@ def get_all_names_ids(name: str, dict_cursor: bool=True) -> dict:
     """
     (db, cursor) = db_connector.cursor(dict_cursor)
     if name in ('supplier', 'party'):
-        query = f'select id, name, gstin from {name} order by name;'
+        query = f'select id, name, gstin from {name} order by lower(name);'
     elif name == 'firm_bank':
-        query = f'select id, name, firm_id from {name} order by name;'
+        query = f'select id, name, firm_id from {name} order by lower(name);'
     else:
-        query = f'select id, name from {name} order by name;'
+        query = f'select id, name from {name} order by lower(name);'
     cursor.execute(query)
     data = cursor.fetchall()
     db.close()
