@@ -97,12 +97,14 @@ def insert_memo_payment(payment: Dict) -> None:
 
     # Default amount to 0 if not present
     amount = payment.get('amount', 0)
+    # Payment mode: Cheque / Cash / RTGS / NEFT (defaults to Cheque for older clients)
+    payment_mode = payment.get('payment_mode') or 'Cheque'
 
     insert_query = Query.into(memo_payments_table).columns(
-        'memo_id', 'bank_id', 'cheque_number', 'cheque_date', 'amount'
+        'memo_id', 'bank_id', 'cheque_number', 'cheque_date', 'amount', 'payment_mode'
     ).insert(
         payment['memo_id'], payment['bank_id'], payment['cheque_number'],
-        payment.get('cheque_date'), amount
+        payment.get('cheque_date'), amount, payment_mode
     )
     
     sql = insert_query.get_sql()

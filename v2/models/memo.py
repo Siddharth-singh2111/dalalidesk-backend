@@ -277,7 +277,9 @@ class MemoPayments(db.Model):
     cheque_number: Mapped[Optional[int]] = MappedColumn(db.Integer, nullable=True)
     cheque_date: Mapped[Optional[datetime]] = MappedColumn(db.Date, nullable=True)
     amount: Mapped[int] = MappedColumn(db.Integer, default=0, nullable=False)
-    
+    # Payment mode: Cheque / Cash / RTGS / NEFT
+    payment_mode: Mapped[Optional[str]] = MappedColumn(db.String(20), default="Cheque", nullable=True)
+
     created_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
     last_updated_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)

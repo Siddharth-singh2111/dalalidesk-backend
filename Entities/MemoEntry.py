@@ -317,6 +317,10 @@ class MemoEntry(Entry):
                 # Normalize empty cheque_date to None
                 if not info.get('cheque_date'):
                     info['cheque_date'] = None
+                # Normalize payment mode (Cheque / Cash / RTGS / NEFT); the UI sends
+                # it as `method`. Default to Cheque for backward compatibility.
+                mode = info.pop('method', None) or info.get('payment_mode')
+                info['payment_mode'] = mode if mode else 'Cheque'
                 # Handle new amount field
                 if 'amount' in info:
                     info['amount'] = int(info['amount']) if info['amount'] else 0

@@ -118,7 +118,8 @@ def get_memo_entry(memo_id: int) -> Dict:
             bank_table.name.as_('bank_name'),
             memo_payments_table.cheque_number,
             fn.ToChar(memo_payments_table.cheque_date, 'YYYY-MM-DD').as_('cheque_date'),
-            memo_payments_table.amount
+            memo_payments_table.amount,
+            memo_payments_table.payment_mode
         )\
         .where(memo_payments_table.memo_id == memo_id)
 
@@ -129,7 +130,8 @@ def get_memo_entry(memo_id: int) -> Dict:
             'bank_name': p['bank_name'],
             'cheque_number': p['cheque_number'],
             'cheque_date': p.get('cheque_date'),
-            'amount': p.get('amount', 0)
+            'amount': p.get('amount', 0),
+            'payment_mode': p.get('payment_mode') or 'Cheque'
         }
         for p in payments_data
     ]
