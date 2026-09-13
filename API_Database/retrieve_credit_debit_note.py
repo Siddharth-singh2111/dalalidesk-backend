@@ -40,6 +40,38 @@ def get_all_credit_debit_notes(**kwargs):
     return response['result']
 
 
+def get_credit_debit_khata_rows_bulk(supplier_ids, party_ids, start_date, end_date,
+                                     supplier_all: bool = False, party_all: bool = False):
+    """
+    Credit/debit notes shaped as Khata report rows (reusing the memo_* columns so
+    they render inline with memos). memo_type is 'CN' (credit) or 'DN' (debit);
+    the Khata totals use it to adjust the pending balance. Filtered by note_date
+    within the range, and by supplier/party unless the *_all flags are set.
+    """
+    where = []
+    if not supplier_all and supplier_ids:
+        where.append(f"supplier_id IN ({','.join(str(int(s)) for s in supplier_ids)})")
+    if not party_all and party_ids:
+        where.append(f"party_id IN ({','.join(str(int(p)) for p in party_ids)})")
+    where.append(f"note_date >= '{start_date}'")
+    where.append(f"note_date <= '{end_date}'")
+    where_clause = ' AND '.join(where)
+    query = f"""
+        SELECT supplier_id,
+               party_id,
+               (CASE WHEN note_type = 'Credit' THEN 'Credit Note' ELSE 'Debit Note' END
+                || COALESCE(' #' || note_number, '')) AS memo_no,
+               to_char(note_date, 'DD/MM/YYYY') AS memo_date,
+               amount::integer AS memo_amt,
+               '' AS chk_amt,
+               CASE WHEN note_type = 'Credit' THEN 'CN' ELSE 'DN' END AS memo_type
+        FROM credit_debit_note
+        WHERE {where_clause}
+        ORDER BY note_date, id
+    """
+    return execute_query(query)['result']
+
+
 def get_credit_debit_note_by_id(id: int) -> Dict:
     """Retrieves a single credit/debit note (with supplier/party names) by its ID."""
     cdn = Table('credit_debit_note')

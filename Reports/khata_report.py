@@ -16,10 +16,23 @@ class KhataReport(table.HeaderSubheaderTable):
         total_rows = []
         totals = {column: 0 for column in self.total_rows_columns}
         memo_totals = {'total': 0, 'gr': 0, 'less': 0, 'settlement': 0}
+        note_totals = {'credit': 0, 'debit': 0}
         try:
             for row in data_rows:
+                memo_type = row.get('memo_type')
+                # Credit/Debit notes ('CN'/'DN') adjust the pending balance but are
+                # not part of the bill or memo (paid) subtotals.
+                is_note = memo_type in ('CN', 'DN')
+                if is_note and row.get('memo_amt') not in (None, ''):
+                    note_amt = int(str(row['memo_amt']).replace(',', ''))
+                    if memo_type == 'CN':
+                        note_totals['credit'] += note_amt
+                    else:
+                        note_totals['debit'] += note_amt
                 for column in self.total_rows_columns:
                     if column in row:
+                        if is_note:
+                            continue
                         value = str(row[column]).replace(',', '') if row[column] != '' else '0'
                         amount = int(value)
                         totals[column] += amount
@@ -50,11 +63,14 @@ class KhataReport(table.HeaderSubheaderTable):
                     ])
             if 'bill_amt' in totals and 'memo_amt' in totals:
                 memo_total_without_settlement = memo_totals['total'] - memo_totals['settlement']
-                pending_amt = totals['bill_amt'] - memo_total_without_settlement
-                total_rows.extend([
-                    self._total_row_dict('Paid+GR (-)', memo_total_without_settlement, 'bill_amt', before_data, negative=True),
-                    self._total_row_dict('Pending (=)', pending_amt, 'bill_amt', before_data)
-                ])
+                # Credit note reduces the party's outstanding; debit note increases it.
+                pending_amt = totals['bill_amt'] - memo_total_without_settlement - note_totals['credit'] + note_totals['debit']
+                total_rows.append(self._total_row_dict('Paid+GR (-)', memo_total_without_settlement, 'bill_amt', before_data, negative=True))
+                if note_totals['credit']:
+                    total_rows.append(self._total_row_dict('Credit Note (-)', note_totals['credit'], 'bill_amt', before_data, negative=True))
+                if note_totals['debit']:
+                    total_rows.append(self._total_row_dict('Debit Note (+)', note_totals['debit'], 'bill_amt', before_data))
+                total_rows.append(self._total_row_dict('Pending (=)', pending_amt, 'bill_amt', before_data))
         except Exception as e:
             print(f'Error in generate_total_rows: {str(e)}')
         return total_rows

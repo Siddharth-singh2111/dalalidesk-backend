@@ -3,7 +3,7 @@ from typing import List, Dict, Union
 from datetime import datetime
 from Individual import Supplier, Party
 from API_Database import efficiency, parse_date
-from API_Database import retrieve_register_entry, retrieve_partial_payment, retrieve_order_form, retrieve_memo_settlement_rows
+from API_Database import retrieve_register_entry, retrieve_partial_payment, retrieve_order_form, retrieve_memo_settlement_rows, retrieve_credit_debit_note
 from itertools import zip_longest
 
 class MetaTable:
@@ -46,6 +46,7 @@ class MetaTable:
                 part_data = self.generate_part_rows_bulk(**part_args)
                 if self.title == 'Khata Report':
                     part_data.extend(self.generate_settlement_rows_bulk(**part_args))
+                    part_data.extend(self.generate_credit_debit_rows_bulk(**part_args))
             else:
                 part_data = []
             print('Grouping part data...')
@@ -141,6 +142,12 @@ class MetaTable:
         Uses optimized bulk query when all flags are set.
         """
         return retrieve_memo_settlement_rows.get_memo_settlement_bulk(supplier_ids, party_ids, supplier_all=supplier_all, party_all=party_all)
+
+    def generate_credit_debit_rows_bulk(self, supplier_ids: List[int], party_ids: List[int], supplier_all: bool=False, party_all: bool=False, **kwargs):
+        """
+        Generate credit/debit note rows (Khata) for multiple headers/subheaders in bulk.
+        """
+        return retrieve_credit_debit_note.get_credit_debit_khata_rows_bulk(supplier_ids, party_ids, supplier_all=supplier_all, party_all=party_all, **kwargs)
 
     def generate_part_columns_bulk(self, supplier_ids: List[int], party_ids: List[int], supplier_all: bool=False, party_all: bool=False, **kwargs):
         """
