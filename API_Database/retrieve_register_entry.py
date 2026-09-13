@@ -474,11 +474,31 @@ def get_all_register_entries_with_names(page=None, page_size=None, filters=None)
             return {'status': 'error', 'message': 'Failed to fetch register entries'}
             
         register_entries = result['result']
-        
 
-        
+        # Attach the memo number(s) each bill has been paid in. A bill can appear in
+        # multiple memos (and multiple memo_bills rows) via the memo_bills link table,
+        # so collect the distinct memo numbers per bill and comma-join them for display.
+        bill_ids = [e['id'] for e in register_entries if e.get('id') is not None]
+        if bill_ids:
+            id_list = ', '.join(str(int(bid)) for bid in bill_ids)
+            memo_sql = (
+                "SELECT mb.bill_id, "
+                "string_agg(DISTINCT me.memo_number::text, ', ' ORDER BY me.memo_number::text) AS memo_numbers "
+                "FROM memo_bills mb "
+                "JOIN memo_entry me ON me.id = mb.memo_id "
+                f"WHERE mb.bill_id IN ({id_list}) "
+                "GROUP BY mb.bill_id"
+            )
+            memo_res = execute_query(memo_sql)
+            memo_map = {}
+            if memo_res.get('status') == 'okay':
+                for row in memo_res['result']:
+                    memo_map[row['bill_id']] = row['memo_numbers']
+            for e in register_entries:
+                e['memo_numbers'] = memo_map.get(e.get('id'), '')
+
         return {
-            'status': 'okay', 
+            'status': 'okay',
             'result': register_entries,
             'pagination': {
                 'total': total_count,
