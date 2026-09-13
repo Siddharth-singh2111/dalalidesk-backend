@@ -425,3 +425,24 @@ VALUES
 ('user', 'firm', FALSE, TRUE, FALSE, FALSE),
 ('user', 'firm_bank', FALSE, TRUE, FALSE, FALSE)
 ON CONFLICT (role, resource) DO NOTHING;
+
+-- Credit/Debit Note (Sept 2026): standalone notes against a supplier-party account.
+CREATE TABLE IF NOT EXISTS credit_debit_note (
+    id               SERIAL PRIMARY KEY,
+    note_type        VARCHAR(6) NOT NULL CHECK (note_type IN ('Credit', 'Debit')),
+    note_number      INT,
+    note_date        DATE NOT NULL DEFAULT CURRENT_DATE,
+    amount           INT NOT NULL,
+    supplier_id      INT NOT NULL REFERENCES supplier(id),
+    party_id         INT NOT NULL REFERENCES party(id),
+    remark           VARCHAR(300),
+    created_by       BIGINT REFERENCES users(id),
+    last_updated_by  BIGINT REFERENCES users(id),
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_updated     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO permissions (role, resource, can_create, can_read, can_update, can_delete) VALUES
+('admin', 'credit_debit_note', TRUE, TRUE, TRUE, TRUE),
+('user',  'credit_debit_note', TRUE, TRUE, TRUE, FALSE)
+ON CONFLICT (role, resource) DO NOTHING;

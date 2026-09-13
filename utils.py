@@ -1,21 +1,22 @@
-from Entities import RegisterEntry, MemoEntry, OrderForm, Item, ItemEntry
+from Entities import RegisterEntry, MemoEntry, OrderForm, Item, ItemEntry, CreditDebitNote
 from Individual import Supplier, Party, Bank, Transporter, Firm, FirmBank
 from Exceptions import DataError
 
 def table_class_mapper(table_name: str):
     """Maps a table name to its corresponding entity class; raises a DataError if the table name is not recognized."""
     entity_mapping = {
-        'supplier': Supplier, 
-        'party': Party, 
-        'bank': Bank, 
-        'transport': Transporter, 
-        'register_entry': RegisterEntry, 
-        'memo_entry': MemoEntry, 
-        'order_form': OrderForm, 
-        'item': Item, 
+        'supplier': Supplier,
+        'party': Party,
+        'bank': Bank,
+        'transport': Transporter,
+        'register_entry': RegisterEntry,
+        'memo_entry': MemoEntry,
+        'order_form': OrderForm,
+        'item': Item,
         'item_entry': ItemEntry,
         'firm': Firm,
-        'firm_bank': FirmBank
+        'firm_bank': FirmBank,
+        'credit_debit_note': CreditDebitNote
     }
     if table_name not in entity_mapping:
         raise DataError('Table name not found in entity mapping')
@@ -34,8 +35,9 @@ def all_tables():
         'item',
         'item_entry',
         'firm',
-        'firm_bank'
-    ]   
+        'firm_bank',
+        'credit_debit_note'
+    ]
 
 
 

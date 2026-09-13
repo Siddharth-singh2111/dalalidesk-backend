@@ -12,11 +12,12 @@ from pypika import Query, Table, functions as fn
 
 from hca_backend.psql import execute_query
 from hca_backend.API_Database import retrieve_indivijual, retrieve_credit, retrieve_register_entry, retrieve_memo_dalali, update_memo_dalali
+from hca_backend.API_Database import retrieve_credit_debit_note
 from hca_backend.OCR.name_cache import NameMatchCache
 from hca_backend.API_Database import retrieve_all, retrieve_from_id, search_entities
 from hca_backend.API_Database import retrieve_memo_entry
 from hca_backend.API_Database.audit_log import search_audit_logs, get_audit_history
-from hca_backend.Entities import RegisterEntry, MemoEntry, OrderForm, Item, ItemEntry
+from hca_backend.Entities import RegisterEntry, MemoEntry, OrderForm, Item, ItemEntry, CreditDebitNote
 from hca_backend.Individual import User
 from hca_backend.Reports import report_select, CustomEncoder
 from hca_backend.OCR import parse_register_entry
@@ -642,6 +643,31 @@ def add_order_form_entry():
     data = request.json
     response = OrderForm.insert(data)
     return jsonify(response)
+
+@v1_bp.route('/add/credit_debit_note', methods=['POST'])
+@jwt_required()
+@permission_required('credit_debit_note', 'create')
+def add_credit_debit_note():
+    """Inserts a credit/debit note using POST data and returns the insertion result."""
+    data = request.json
+    # Stamp the creator, like register entries.
+    if data.get('created_by') is None:
+        data['created_by'] = get_user_id_from_token()
+    response = CreditDebitNote.insert(data)
+    return jsonify(response)
+
+@v1_bp.route('/credit_debit_note/list', methods=['GET'])
+@jwt_required()
+@permission_required('credit_debit_note', 'read')
+def list_credit_debit_notes():
+    """Lists credit/debit notes (with supplier/party names); optional supplier_id / party_id filters."""
+    kwargs = {}
+    if request.args.get('supplier_id'):
+        kwargs['supplier_id'] = request.args.get('supplier_id')
+    if request.args.get('party_id'):
+        kwargs['party_id'] = request.args.get('party_id')
+    result = retrieve_credit_debit_note.get_all_credit_debit_notes(**kwargs)
+    return json.dumps({'status': 'okay', 'result': result}, cls=CustomEncoder)
 
 @v1_bp.route('/get_all', methods=['POST'])
 @jwt_required()
