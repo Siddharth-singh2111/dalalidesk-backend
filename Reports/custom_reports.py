@@ -542,6 +542,60 @@ def commission_summary(supplier_ids: List[int], party_ids: List[int],
     return data
 
 
+def memo_summary(supplier_ids: List[int], party_ids: List[int],
+                 start_date: str, end_date: str,
+                 supplier_all: bool = False, party_all: bool = False) -> Dict:
+    """
+    Memos created within the date range, listed with supplier/party/amount/
+    commission, plus the total memo count and totals. Answers "how many memos
+    were created". The range filters on the memo date (register_date).
+    """
+    start = sql_date(parse_date(start_date))
+    end = sql_date(parse_date(end_date))
+    query = f"""
+        SELECT me.memo_number, me.register_date,
+               s.name AS supplier_name, p.name AS party_name,
+               COALESCE(me.amount, 0) AS memo_amt,
+               COALESCE(me.commision, 0) AS commission
+        FROM memo_entry me
+        LEFT JOIN supplier s ON me.supplier_id = s.id
+        LEFT JOIN party p ON me.party_id = p.id
+        WHERE me.register_date >= '{start}' AND me.register_date <= '{end}'
+        {_id_filter('me.supplier_id', supplier_ids, supplier_all)}
+        {_id_filter('me.party_id', party_ids, party_all)}
+        ORDER BY me.register_date, me.memo_number
+    """
+    rows = execute_query(query)['result']
+
+    data = _base('Memo Summary', start, end)
+    data_rows = []
+    total_amt = 0
+    total_comm = 0
+    for row in rows:
+        amt = int(row['memo_amt'] or 0)
+        comm = int(row['commission'] or 0)
+        total_amt += amt
+        total_comm += comm
+        data_rows.append({
+            'memo_no': row['memo_number'],
+            'memo_date': _fmt_date(row['register_date']),
+            'supplier': row['supplier_name'] or '-',
+            'party': row['party_name'] or '-',
+            'amount': _fmt(amt),
+            'commission': _fmt(comm),
+        })
+    if data_rows:
+        special = [_total_row('Total (=) ', total_amt, 'amount'),
+                   _total_row('Total (=) ', total_comm, 'commission')]
+        data['headings'].append({
+            'title': 'Memo Summary',
+            'subheadings': [{'title': '', 'dataRows': data_rows,
+                             'specialRows': special, 'displayOnIndex': False}],
+            'cumulative': {'name': 'Memos Created', 'value': str(len(data_rows))},
+        })
+    return data
+
+
 CUSTOM_REPORTS = {
     'bills_added_report': bills_added_report,
     'supplier_wise_sale': supplier_wise_sale,
@@ -549,4 +603,5 @@ CUSTOM_REPORTS = {
     'supplier_wise_outstanding': supplier_wise_outstanding,
     'local_dispatch_summary': local_dispatch_summary,
     'commission_summary': commission_summary,
+    'memo_summary': memo_summary,
 }

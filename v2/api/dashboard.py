@@ -300,10 +300,17 @@ def get_dashboard_metrics():
     
     # Execute the query to get the total pending commission
     pending_commission = pending_commission_query.scalar() or 0
-    
+
+    # 5. Number of memos created (same supplier/party/financial-year/city scope)
+    memo_count_query = db.session.query(func.count(MemoEntry.id))
+    if city:  # Apply join only if city is present
+        memo_count_query = memo_count_query.join(Supplier, MemoEntry.supplier_id == Supplier.id)
+    memo_count = memo_count_query.filter(*memo_filters).scalar() or 0
+
     return jsonify({
         "total_register_amount": total_register_amount,
         "pending_register_amount": pending_register_amount,
         "total_commission": total_commission,
-        "pending_commission": pending_commission
+        "pending_commission": pending_commission,
+        "memo_count": memo_count
     })
