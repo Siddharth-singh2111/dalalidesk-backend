@@ -47,6 +47,12 @@ def generate_local_dispatch_excel():
         def transport_clause(col):
             return f" AND {col} ILIKE '%{safe_transport}%'" if safe_transport else ''
 
+        user_id_raw = request.args.get('user_id')
+        user_id = int(user_id_raw) if user_id_raw and user_id_raw.strip() else None
+
+        def user_clause(col):
+            return f" AND {col} = {user_id}" if user_id else ''
+
         query = f"""
             SELECT * FROM (
                 SELECT db.bill_number AS "Bill No",
@@ -68,7 +74,7 @@ def generate_local_dispatch_excel():
                       FROM dispatch_bill GROUP BY dispatch_id) cnt
                       ON cnt.dispatch_id = d.id
                 WHERE d.dispatch_date >= '{start}' AND d.dispatch_date <= '{end}'
-                {party_clause('d.party_id')}{transport_clause('db.transport_name')}
+                {party_clause('d.party_id')}{transport_clause('db.transport_name')}{user_clause('d.created_by')}
 
                 UNION ALL
 
@@ -85,7 +91,7 @@ def generate_local_dispatch_excel():
                   AND re.id NOT IN (SELECT register_entry_id FROM dispatch_bill
                                     WHERE register_entry_id IS NOT NULL)
                   AND DATE(re.created_at) >= '{start}' AND DATE(re.created_at) <= '{end}'
-                {party_clause('re.party_id')}{transport_clause('re.transport_name')}
+                {party_clause('re.party_id')}{transport_clause('re.transport_name')}{user_clause('re.created_by')}
             ) combined
             ORDER BY "Dispatch Date", _src, _serial NULLS LAST, "Bill No"
         """
@@ -143,7 +149,7 @@ def generate_commission_summary_excel():
                    m.memo_number AS "Memo No",
                    mp.cheque_date AS "Chq Date",
                    p.name AS "Name of Buyer",
-                   (m.amount - COALESCE(m.less_gst, 0)) AS "Amt after GST",
+                   COALESCE(NULLIF(m.less_gst, 0), m.amount) AS "Amt after GST",
                    m.less_gst_percentage AS "GST %",
                    mp.amount AS "Chq Amt",
                    COALESCE(m.commision, 0) AS "Brokerage"

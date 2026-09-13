@@ -299,7 +299,8 @@ def supplier_wise_outstanding(supplier_ids: List[int], party_ids: List[int],
 def local_dispatch_summary(supplier_ids: List[int], party_ids: List[int],
                            start_date: str, end_date: str,
                            supplier_all: bool = False, party_all: bool = False,
-                           transport: Optional[str] = None) -> Dict:
+                           transport: Optional[str] = None,
+                           user_id: Optional[int] = None) -> Dict:
     """
     Local bills dispatched from the office, grouped by party and ordered by
     dispatch day within each party.
@@ -322,6 +323,12 @@ def local_dispatch_summary(supplier_ids: List[int], party_ids: List[int],
             return ''
         safe = str(transport).replace("'", "''")
         return f" AND {col} ILIKE '%{safe}%'"
+
+    def user_clause(col: str) -> str:
+        # Filter to bills fed by a specific user (created_by).
+        if not user_id:
+            return ''
+        return f" AND {col} = {int(user_id)}"
 
     query = f"""
         SELECT * FROM (
@@ -349,6 +356,7 @@ def local_dispatch_summary(supplier_ids: List[int], party_ids: List[int],
             {_id_filter('d.party_id', party_ids, party_all)}
             {_id_filter('db.supplier_id', supplier_ids, supplier_all)}
             {transport_clause('db.transport_name')}
+            {user_clause('d.created_by')}
 
             UNION ALL
 
@@ -375,12 +383,13 @@ def local_dispatch_summary(supplier_ids: List[int], party_ids: List[int],
             {_id_filter('re.party_id', party_ids, party_all)}
             {_id_filter('re.supplier_id', supplier_ids, supplier_all)}
             {transport_clause('re.transport_name')}
+            {user_clause('re.created_by')}
         ) combined
         ORDER BY party_name, day_date, src_order, serial_number NULLS LAST, bill_number
     """
     rows = execute_query(query)['result']
 
-    data = _base('Local Dispatch Summary', start, end)
+    data = _base('Dispatch Summary', start, end)
     grand_bills = 0
     current_party: Optional[str] = None
     current_heading: Optional[Dict] = None
@@ -452,7 +461,7 @@ def commission_summary(supplier_ids: List[int], party_ids: List[int],
                m.id AS memo_id,
                m.memo_number,
                p.name AS party_name,
-               (m.amount - COALESCE(m.less_gst, 0)) AS amt_after_gst,
+               COALESCE(NULLIF(m.less_gst, 0), m.amount) AS amt_after_gst,
                m.less_gst_percentage AS gst_pct,
                mp.cheque_date,
                mp.amount AS cheque_amt,

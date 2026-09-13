@@ -196,6 +196,18 @@ def get_users():
         'users': [user.to_dict() for user in users]
     })
 
+@v1_bp.route('/report_users', methods=['GET'])
+@jwt_required()
+def get_report_users():
+    """Lightweight user list (id, name) for report filters — available to any
+    logged-in user (unlike /users which needs the users:read permission)."""
+    from psql import execute_query
+    rows = execute_query(
+        "SELECT id, username, COALESCE(full_name, username) AS name "
+        "FROM users ORDER BY COALESCE(full_name, username)"
+    )['result']
+    return jsonify(rows)
+
 @v1_bp.route('/users/<int:user_id>', methods=['GET'])
 @jwt_required()
 @permission_required('users', 'read')
