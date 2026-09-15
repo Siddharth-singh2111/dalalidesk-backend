@@ -56,14 +56,16 @@ def calculate_commission(amount: float, gst_percentage: float = 4.762, rate_perc
     if not isinstance(gst_percentage, (int, float)) or not math.isfinite(gst_percentage):
         raise DataError("Invalid GST percentage: must be a finite number.")
     
-    # If 5 or 12 change it to 4.762 or 10.7
+    # Convert the GST rate to the portion of the (GST-inclusive) amount that is
+    # GST, so it can be removed to get the taxable value: 5% -> 5/105 = 4.762%,
+    # 18% -> 18/118 = 15.2543%.
     if gst_percentage == 5: # 5% GST
         gst_percentage = 4.762
-    elif gst_percentage == 12: # 12% GST
-        gst_percentage = 10.7
+    elif gst_percentage == 18: # 18% GST
+        gst_percentage = 15.2543
 
-    if gst_percentage != 4.762 and gst_percentage != 10.7:
-        raise DataError("Invalid GST percentage: must be 5% or 12%.")
+    if gst_percentage != 4.762 and gst_percentage != 15.2543:
+        raise DataError("Invalid GST percentage: must be 5% or 18%.")
     # Validate the commission rate (percent)
     if not isinstance(rate_percent, (int, float)) or not math.isfinite(rate_percent) or not 0 <= rate_percent <= 100:
         raise DataError("Invalid commission rate: must be a percentage between 0 and 100.")
