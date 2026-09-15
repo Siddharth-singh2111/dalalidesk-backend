@@ -16,6 +16,7 @@ from API_Database.retrieve_memo_dalali import calculate_commission, get_commissi
 from API_Database import get_next_available_memo_number
 from API_Database import update_part_payment
 from API_Database import parse_date, sql_date, delete_memo_payments
+from psql import transaction
 from Exceptions import DataError
 
 class MemoEntry(Entry):
@@ -394,9 +395,13 @@ class MemoEntry(Entry):
                     'input_errors': {'selected_bills': {'error': True, 'message': f'Bill(s) {bill_numbers} already settled'}},
                 }
 
-        memo.generate_memo_bills_and_update_status()
-
-        ret = insert_memo_entry.insert_memo_entry(memo)
+        # Atomic: mark the bills paid AND write the memo (entry, bills, payments)
+        # as a single all-or-nothing transaction. If anything fails, the bill
+        # status changes roll back, so a bill can never be left 'F' (paid)
+        # without a saved memo (the bug that produced orphaned "paid" bills).
+        with transaction():
+            memo.generate_memo_bills_and_update_status()
+            ret = insert_memo_entry.insert_memo_entry(memo)
         if get_cls:
             if get_cls and ret['status'] == 'okay':
                 ret['class'] = memo
@@ -456,24 +461,29 @@ class MemoEntry(Entry):
                 return {'status': 'error', 'message': f'Bill {bill.bill_number} is already settled by another memo'}
 
         added_amount = 0
-        for bill in bills:
-            pending_amount = bill.get_pending_amount()
-            bill.status = 'F'
-            insert_memo_entry.insert_memo_bill(MemoBill(bill.get_id(), pending_amount, 'F'), memo_id)
-            bill.update()
-            added_amount += pending_amount
-
-        new_amount = int(memo_data['amount']) + added_amount
+        new_amount = int(memo_data['amount'])
         gst_percentage = memo_data.get('less_gst_percentage')
         if gst_percentage is None:
             from API_Database.retrieve_indivijual import get_supplier_gst_default
             gst_percentage = get_supplier_gst_default(memo_data['supplier_id'])
         rate_percent = get_commission_rate(memo_data['supplier_id'], memo_data['party_id'])
-        result = calculate_commission(new_amount, float(gst_percentage), rate_percent)
-        update_memo_amount_and_commission(
-            memo_id, new_amount, int(result['amount_without_gst']),
-            int(result['commission']), gst_percentage,
-        )
+        # Atomic: add the memo_bills, mark the bills paid, and grow the memo
+        # amount/commission together, so a mid-way failure can't leave a bill
+        # 'F' (paid) with no memo_bills row.
+        with transaction():
+            for bill in bills:
+                pending_amount = bill.get_pending_amount()
+                bill.status = 'F'
+                insert_memo_entry.insert_memo_bill(MemoBill(bill.get_id(), pending_amount, 'F'), memo_id)
+                bill.update()
+                added_amount += pending_amount
+
+            new_amount = int(memo_data['amount']) + added_amount
+            result = calculate_commission(new_amount, float(gst_percentage), rate_percent)
+            update_memo_amount_and_commission(
+                memo_id, new_amount, int(result['amount_without_gst']),
+                int(result['commission']), gst_percentage,
+            )
 
         return {
             'status': 'okay',

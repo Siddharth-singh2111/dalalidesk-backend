@@ -3,12 +3,59 @@ from psycopg2 import errors
 from psycopg2.extras import RealDictCursor
 import os
 import re
+import threading
+from contextlib import contextmanager
 from typing import Tuple, Dict, Optional, Any
 from dotenv import load_dotenv
 from Exceptions import DataError
 from .remote_connector import execute_remote_query
 from Multiprocessing import exec_in_available_thread
 load_dotenv()
+
+# Per-thread active transaction connection. When set, execute_query runs on this
+# shared connection and does NOT commit/close — the transaction() context manager
+# commits once at the end (or rolls back if the body raises), making a group of
+# writes atomic. See transaction() below.
+_tx_local = threading.local()
+
+
+def _active_tx_conn():
+    """Return the current thread's open transaction connection, or None."""
+    return getattr(_tx_local, 'conn', None)
+
+
+@contextmanager
+def transaction():
+    """
+    Run several execute_query() calls as ONE atomic database transaction.
+
+    Inside the `with transaction():` block every execute_query on this thread
+    shares a single connection and nothing is committed until the block exits
+    cleanly; if the block raises, the whole group is rolled back. Nested
+    transaction() calls join the outer one (no inner commit point).
+
+    Used to make memo creation all-or-nothing so a failure part-way through can
+    never leave bills marked paid ('F') without a saved memo.
+    """
+    if _active_tx_conn() is not None:
+        # Already inside a transaction on this thread — join it.
+        yield
+        return
+    db = connect()
+    _tx_local.conn = db
+    try:
+        yield
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        _tx_local.conn = None
+        try:
+            db.close()
+        except Exception:
+            pass
+
 
 def connect():
     """
@@ -178,12 +225,21 @@ def execute_query(query: str, dictCursor: bool=True, exec_remote: bool=True, cur
     if query_type in ['INSERT', 'UPDATE', 'DELETE']:
         query = ensure_returning_id(query, query_type)
     
+    # When inside a transaction() block on this thread, reuse its shared
+    # connection and defer commit/close to the context manager so the whole
+    # group of writes is atomic.
+    tx_conn = _active_tx_conn()
+    in_tx = tx_conn is not None
     try:
-        (db, cur) = cursor(dictCursor)
-        
+        if in_tx:
+            db = tx_conn
+            cur = db.cursor(cursor_factory=RealDictCursor) if dictCursor else db.cursor()
+        else:
+            (db, cur) = cursor(dictCursor)
+
         # Execute the query
         cur.execute(query)
-        
+
         # Handle non-SELECT queries
         if query_type != 'SELECT':
             if exec_remote and os.getenv('QUERY_REMOTE') == 'true':
@@ -227,12 +283,14 @@ def execute_query(query: str, dictCursor: bool=True, exec_remote: bool=True, cur
                 except Exception as audit_error:
                     # Log the error but don't fail the transaction
                     print(f"Error recording audit log: {audit_error}")
-                
-            db.commit()
+
+            if not in_tx:
+                db.commit()
         else:
             result = cur.fetchall()
-        
-        db.close()
+
+        if not in_tx:
+            db.close()
         return {'result': result, 'status': 'okay', 'message': 'Query executed successfully!'}
     except errors.ForeignKeyViolation as e:
         # Extract details from the error message if possible
