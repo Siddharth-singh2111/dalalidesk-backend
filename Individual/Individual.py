@@ -52,6 +52,9 @@ class Individual:
             raw = kwargs.get('gstin')
             if raw is not None and str(raw).strip():
                 self.gstin = re.sub(r'\s+', '', str(raw).strip()).upper()
+        # Optional supplier contact fields (empty -> None).
+        self.email = (str(kwargs.get('email')).strip() or None) if kwargs.get('email') is not None else None
+        self.pin_code = (str(kwargs.get('pin_code')).strip() or None) if kwargs.get('pin_code') is not None else None
         self.table_name = table_name
         self.id = kwargs.get('id', None)
         if self.id is not None:
@@ -97,6 +100,9 @@ class Individual:
                 update_fields.append(f"gstin='{_strip_quotes(self.gstin)}'")
             else:
                 update_fields.append("gstin=NULL")
+        if self.table_name == 'supplier':
+            update_fields.append(f"email='{_strip_quotes(self.email)}'" if self.email else "email=NULL")
+            update_fields.append(f"pin_code='{_strip_quotes(self.pin_code)}'" if self.pin_code else "pin_code=NULL")
         # Add audit fields
         if current_user_id is not None:
             update_fields.append(f"last_updated=CURRENT_TIMESTAMP")
@@ -238,6 +244,14 @@ class Individual:
         if entity.table_name in ('supplier', 'party') and getattr(entity, 'gstin', None):
             columns.append('gstin')
             values.append(f"'{remove_single_quotes(entity.gstin)}'")
+
+        if entity.table_name == 'supplier' and getattr(entity, 'email', None):
+            columns.append('email')
+            values.append(f"'{remove_single_quotes(entity.email)}'")
+
+        if entity.table_name == 'supplier' and getattr(entity, 'pin_code', None):
+            columns.append('pin_code')
+            values.append(f"'{remove_single_quotes(entity.pin_code)}'")
 
         # Add audit fields
         if current_user_id is not None:
