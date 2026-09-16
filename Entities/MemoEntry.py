@@ -68,6 +68,7 @@ class MemoEntry(Entry):
                  notes: Optional[List[str]]=None,
                  parent_dalali_id: Optional[int]=None, parent_memo_id: Optional[int]=None,
                  memo_type: str='Full', less_gst: int=0, commision: int=0,
+                 gst_percentage: Union[int, float, str]=None,
                  table_name: str='memo_entry', *args, **kwargs) -> None:
         """Initializes a MemoEntry with memo number, supplier ID, party ID, amount, mode, register date, and associated bills and payments."""
         super().__init__(*args, table_name=table_name, **kwargs)
@@ -97,6 +98,10 @@ class MemoEntry(Entry):
         self.memo_type = memo_type
         self.less_gst = less_gst
         self.commision = commision
+        # Optional per-memo GST rate chosen on the entry screen (5 or 18). When
+        # set it overrides the supplier's default so one supplier can have memos
+        # at both rates; when None the supplier default is used.
+        self.gst_percentage_override = int(gst_percentage) if gst_percentage not in (None, '') else None
         self.memo_bills: List[MemoBill] = []
 
     def full_payment(self) -> None:
@@ -285,7 +290,7 @@ class MemoEntry(Entry):
         # Calculate less_gst and commission for all memo types if not already calculated
         # (will be 0 if not applicable)
         if not self.less_gst and not self.commision:
-            self.calculate_less_gst_and_commission()
+            self.calculate_less_gst_and_commission(self.gst_percentage_override)
         
 
     @classmethod

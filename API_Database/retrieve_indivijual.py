@@ -10,8 +10,11 @@ def get_all_names_ids(name: str, dict_cursor: bool=True) -> dict:
     Supplier rows include gstin for external integrations (e.g. Miracle OCR).
     """
     (db, cursor) = db_connector.cursor(dict_cursor)
-    if name in ('supplier', 'party'):
-        query = f'select id, name, gstin from {name} order by lower(name);'
+    if name == 'supplier':
+        # gst_default lets the memo screen default the GST rate per supplier.
+        query = 'select id, name, gstin, gst_default from supplier order by lower(name);'
+    elif name == 'party':
+        query = 'select id, name, gstin from party order by lower(name);'
     elif name == 'firm_bank':
         query = f'select id, name, firm_id from {name} order by lower(name);'
     else:
