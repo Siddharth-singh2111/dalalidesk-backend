@@ -40,7 +40,7 @@ class RegisterEntry(Entry):
     partial_amount: int
     _report_attribute_map = {'bill_number': 'bill_no', 'register_date': 'bill_date', 'amount': 'bill_amt', 'status': 'bill_status'}
 
-    def __init__(self, bill_number: int, amount: int, supplier_id: int, party_id: int, register_date: Union[str, datetime], status: str='N', gr_amount: int=0, deduction: int=0, partial_amount: int=0, lr_number: str=None, transport_name: str=None, table_name='register_entry', *args, **kwargs) -> None:
+    def __init__(self, bill_number: int, amount: int, supplier_id: int, party_id: int, register_date: Union[str, datetime], status: str='N', gr_amount: int=0, deduction: int=0, partial_amount: int=0, lr_number: str=None, transport_name: str=None, is_scheme: bool=False, scheme_source_bill_id: int=None, table_name='register_entry', *args, **kwargs) -> None:
         """Initializes a RegisterEntry with bill number, amount, supplier and party IDs, register date, status, and payment details."""
         super().__init__(*args, table_name=table_name, **kwargs)
         self.bill_number = bill_number
@@ -55,6 +55,10 @@ class RegisterEntry(Entry):
         # Optional dispatch fields (blank strings normalised to None).
         self.lr_number = lr_number or None
         self.transport_name = transport_name or None
+        # Scheme bill: a denied-scheme amount raised as its own bill, linked back
+        # to the original bill it was deducted from.
+        self.is_scheme = bool(is_scheme)
+        self.scheme_source_bill_id = int(scheme_source_bill_id) if scheme_source_bill_id not in (None, '') else None
 
     def get_pending_amount(self) -> int:
         """Calculates and returns the pending amount after subtracting gr_amount, deduction, and partial_amount from the total amount."""
@@ -102,7 +106,7 @@ class RegisterEntry(Entry):
     @classmethod
     def from_dict(cls, data: Dict, *args, **kwargs) -> RegisterEntry:
         """Creates a RegisterEntry instance from a dictionary, converting necessary fields to integers."""
-        int_attributes = ['bill_number', 'amount', 'supplier_id', 'party_id', 'gr_amount', 'deduction', 'partial_amount']
+        int_attributes = ['bill_number', 'amount', 'supplier_id', 'party_id', 'gr_amount', 'deduction', 'partial_amount', 'scheme_source_bill_id']
         data = cls.convert_int_attributes(data, int_attributes)
         return cls(**data)
 

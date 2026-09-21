@@ -78,6 +78,8 @@ CREATE TABLE register_entry (
     deduction INT DEFAULT 0,
     status VARCHAR(2) DEFAULT 'N',
     partial_amount INT DEFAULT 0,
+    is_scheme BOOLEAN DEFAULT FALSE,
+    scheme_source_bill_id INT REFERENCES register_entry(id),
     UNIQUE (bill_number, supplier_id, party_id, register_date),
     last_update TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

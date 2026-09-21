@@ -497,6 +497,22 @@ def get_all_register_entries_with_names(page=None, page_size=None, filters=None)
             for e in register_entries:
                 e['memo_numbers'] = memo_map.get(e.get('id'), '')
 
+        # For scheme bills, attach the original (source) bill's number for display.
+        source_ids = [int(e['scheme_source_bill_id']) for e in register_entries
+                      if e.get('scheme_source_bill_id')]
+        if source_ids:
+            src_list = ', '.join(str(sid) for sid in set(source_ids))
+            src_res = execute_query(
+                f"SELECT id, bill_number FROM register_entry WHERE id IN ({src_list})"
+            )
+            src_map = {}
+            if src_res.get('status') == 'okay':
+                for row in src_res['result']:
+                    src_map[row['id']] = row['bill_number']
+            for e in register_entries:
+                if e.get('scheme_source_bill_id'):
+                    e['scheme_source_bill_number'] = src_map.get(int(e['scheme_source_bill_id']))
+
         return {
             'status': 'okay',
             'result': register_entries,

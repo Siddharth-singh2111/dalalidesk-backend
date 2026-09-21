@@ -11,7 +11,12 @@ def check_new_register(entry, edit_mode=False) -> bool:
     1. No exact duplicate (same bill number, supplier, party, and date) excluding self if edit_mode=True
     2. If bill number exists for same supplier and party, dates must be at least 6 months apart, excluding self if edit_mode=True
     """
-    
+    # A scheme bill is an intentional re-bill linked to an original bill, so it
+    # may reuse that bill number within 6 months. The DB UNIQUE constraint
+    # (bill_number, supplier, party, date) still prevents an exact duplicate.
+    if getattr(entry, 'is_scheme', False):
+        return True
+
     # Base WHERE clause components
     where_clause = f"""
         WHERE bill_number = '{entry.bill_number}' 
@@ -117,6 +122,8 @@ def insert_register_entry(entry) -> None:
         'deduction',
         'lr_number',
         'transport_name',
+        'is_scheme',
+        'scheme_source_bill_id',
         'created_by'
     ).insert(
         entry.supplier_id,
@@ -129,6 +136,8 @@ def insert_register_entry(entry) -> None:
         entry.deduction,
         getattr(entry, 'lr_number', None),
         getattr(entry, 'transport_name', None),
+        bool(getattr(entry, 'is_scheme', False)),
+        getattr(entry, 'scheme_source_bill_id', None),
         getattr(entry, 'created_by', None)
     )
 
