@@ -247,7 +247,7 @@ class DalaliMemoReportService:
                     "SUPPLIER": supplier.name if supplier else None,
                     "PARTY": party.name if party else None,
                     "CITY": supplier.city if supplier else None,
-                    "MEMO NO.": memo.memo_number,
+                    "MEMO NO.": (f"OS-{memo.memo_number}" if getattr(memo, 'is_out_station', False) else memo.memo_number),
                     "MEMO DATE": memo.register_date,
                     "DD AMOUNT": memo.amount,
                     "LESS GST %": memo.less_gst_percentage,

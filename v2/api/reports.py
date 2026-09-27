@@ -146,7 +146,7 @@ def generate_commission_summary_excel():
 
         query = f"""
             SELECT s.name AS "Supplier",
-                   m.memo_number AS "Memo No",
+                   (CASE WHEN m.is_out_station THEN 'OS-' || m.memo_number::text ELSE m.memo_number::text END) AS "Memo No",
                    mp.cheque_date AS "Chq Date",
                    p.name AS "Name of Buyer",
                    COALESCE(NULLIF(m.less_gst, 0), m.amount) AS "Amt after GST",

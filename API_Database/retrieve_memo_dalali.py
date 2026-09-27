@@ -136,6 +136,7 @@ def get_all_memo_entries_with_dalali(start_date: str = None, end_date: str = Non
         .select(
             memo_entry.id,
             memo_entry.memo_number,
+            memo_entry.is_out_station,
             memo_entry.supplier_id,
             supplier.name.as_('supplier_name'),
             memo_entry.party_id,

@@ -48,6 +48,15 @@ def _fmt_date(value) -> str:
     return str(value or '')
 
 
+def _memo_no(row) -> str:
+    """Format a memo number for display, adding the 'OS-' prefix for out-station
+    (non-Surat supplier) memos. The row must include is_out_station and memo_number."""
+    number = row.get('memo_number')
+    if number is None:
+        return ''
+    return ('OS-' + str(number)) if row.get('is_out_station') else str(number)
+
+
 def _id_filter(column: str, ids: List[int], select_all: bool) -> str:
     if select_all or not ids:
         return ''
@@ -460,6 +469,7 @@ def commission_summary(supplier_ids: List[int], party_ids: List[int],
         SELECT s.name AS supplier_name,
                m.id AS memo_id,
                m.memo_number,
+               m.is_out_station,
                p.name AS party_name,
                COALESCE(NULLIF(m.less_gst, 0), m.amount) AS amt_after_gst,
                m.less_gst_percentage AS gst_pct,
@@ -518,7 +528,7 @@ def commission_summary(supplier_ids: List[int], party_ids: List[int],
         gst_pct = row['gst_pct']
 
         current_heading['subheadings'][0]['dataRows'].append({
-            'memo_no': row['memo_number'],
+            'memo_no': _memo_no(row),
             'chq_date': _fmt_date(row['cheque_date']),
             'buyer': row['party_name'] or '-',
             'amt_after_gst': _fmt(row['amt_after_gst']),
@@ -553,7 +563,7 @@ def memo_summary(supplier_ids: List[int], party_ids: List[int],
     start = sql_date(parse_date(start_date))
     end = sql_date(parse_date(end_date))
     query = f"""
-        SELECT me.memo_number, me.register_date,
+        SELECT me.memo_number, me.is_out_station, me.register_date,
                s.name AS supplier_name, p.name AS party_name,
                COALESCE(me.amount, 0) AS memo_amt,
                COALESCE(me.commision, 0) AS commission
@@ -577,7 +587,7 @@ def memo_summary(supplier_ids: List[int], party_ids: List[int],
         total_amt += amt
         total_comm += comm
         data_rows.append({
-            'memo_no': row['memo_number'],
+            'memo_no': _memo_no(row),
             'memo_date': _fmt_date(row['register_date']),
             'supplier': row['supplier_name'] or '-',
             'party': row['party_name'] or '-',

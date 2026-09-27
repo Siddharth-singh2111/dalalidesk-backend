@@ -38,15 +38,35 @@ def check_add_memo(memo_number: int, memo_date: str) -> bool:
     return False
 
 
-def get_next_available_memo_number() -> int:
+def supplier_is_out_station(supplier_id) -> bool:
     """
-    Get the next available memo number
+    A supplier NOT based in Surat is 'out-station' and its memos use the separate
+    OS- numbering series. Suppliers with no/unknown city are treated as normal
+    (Surat) so they never fall into the OS- series unexpectedly.
     """
-    query = 'select memo_number from memo_entry order by memo_number DESC;'
+    if not supplier_id:
+        return False
+    response = execute_query("select city from supplier where id = {};".format(int(supplier_id)))
+    rows = response.get('result') if isinstance(response, dict) else None
+    if not rows:
+        return False
+    city = (rows[0].get('city') or '').strip().lower()
+    return bool(city) and city != 'surat'
+
+
+def get_next_available_memo_number(is_out_station: bool = False) -> int:
+    """
+    Get the next available memo number for the requested series. Surat suppliers
+    use the normal series (is_out_station = FALSE); out-station suppliers use a
+    separate OS- series (is_out_station = TRUE) that numbers independently.
+    """
+    flag = 'TRUE' if is_out_station else 'FALSE'
+    query = ("select COALESCE(MAX(memo_number), 0) as max_num from memo_entry "
+             "where COALESCE(is_out_station, FALSE) = {};").format(flag)
     response = execute_query(query)
-    if len(response['result']) == 0:
-        raise DataError('No Memo Entries Found, please contact Vaibhav')
-    return response['result'][0]['memo_number'] + 1
+    rows = response['result']
+    max_num = (rows[0]['max_num'] if rows else 0) or 0
+    return max_num + 1
 
 def get_memo_entry_id(supplier_id: int, party_id: int, memo_number: int) -> int:
     """
@@ -238,6 +258,7 @@ def get_memo_entry(memo_id: int) -> Dict:
     result = {
         'id': memo_data['id'],
         'memo_number': memo_data['memo_number'],
+        'is_out_station': memo_data.get('is_out_station', False),
         'supplier_id': memo_data['supplier_id'],
         'party_id': memo_data['party_id'],
         'supplier_name': memo_data['supplier_name'],
@@ -370,9 +391,10 @@ def get_all_memo_entries_with_names(page=None, page_size=None, filters=None) -> 
             memo_entry_table.additions_details,
             memo_entry_table.notes, memo_entry_table.last_update, memo_entry_table.created_at,
             memo_entry_table.created_by, memo_entry_table.last_updated, memo_entry_table.last_updated_by,
-            memo_entry_table.parent_dalali_id, memo_entry_table.parent_memo_id, 
+            memo_entry_table.parent_dalali_id, memo_entry_table.parent_memo_id,
             memo_entry_table.memo_type, memo_entry_table.less_gst_percentage,
-            memo_entry_table.less_gst, memo_entry_table.commision
+            memo_entry_table.less_gst, memo_entry_table.commision,
+            memo_entry_table.is_out_station
         ]
         # Columns needed for group by (without aliases/functions)
         memo_entry_cols_group = [
@@ -386,9 +408,10 @@ def get_all_memo_entries_with_names(page=None, page_size=None, filters=None) -> 
             memo_entry_table.additions_details,
             memo_entry_table.notes, memo_entry_table.last_update, memo_entry_table.created_at,
             memo_entry_table.created_by, memo_entry_table.last_updated, memo_entry_table.last_updated_by,
-            memo_entry_table.parent_dalali_id, memo_entry_table.parent_memo_id, 
+            memo_entry_table.parent_dalali_id, memo_entry_table.parent_memo_id,
             memo_entry_table.memo_type, memo_entry_table.less_gst_percentage,
-            memo_entry_table.less_gst, memo_entry_table.commision
+            memo_entry_table.less_gst, memo_entry_table.commision,
+            memo_entry_table.is_out_station
         ]
 
         # Selected name columns + Aliases

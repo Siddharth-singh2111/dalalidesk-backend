@@ -950,6 +950,7 @@ def get_register_entry_v2(id: int):
                     memo_bills_table.type,
                     memo_bills_table.amount,
                     memo_entry_table.memo_number,
+                    memo_entry_table.is_out_station,
                     fn.ToChar(memo_entry_table.register_date, 'YYYY-MM-DD').as_('register_date')
                 )\
                 .where(memo_bills_table.bill_id == id)
@@ -983,10 +984,24 @@ def get_memo_entry_v2(id: int):
 @jwt_required()
 @permission_required('memo_entry', 'read')
 def get_next_available_memo_number():
-    """Retrieves the next available memo number."""
+    """Retrieves the next available memo number.
+
+    When a supplier_id is provided, the series is chosen from the supplier's city:
+    Surat suppliers use the normal series, out-station (non-Surat) suppliers use a
+    separate OS- series. Returns the numeric memo_number, the is_out_station flag,
+    and a ready-to-show display string ("OS-5" or "5").
+    """
     try:
-        memo_number = MemoEntry.get_next_available_memo_number()
-        return jsonify({'status': 'okay', "memo_number": memo_number})
+        supplier_id = request.args.get('supplier_id', type=int)
+        is_out_station = retrieve_memo_entry.supplier_is_out_station(supplier_id) if supplier_id else False
+        memo_number = MemoEntry.get_next_available_memo_number(is_out_station)
+        display = "OS-{}".format(memo_number) if is_out_station else str(memo_number)
+        return jsonify({
+            'status': 'okay',
+            "memo_number": memo_number,
+            "is_out_station": is_out_station,
+            "display": display,
+        })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

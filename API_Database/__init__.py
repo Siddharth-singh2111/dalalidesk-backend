@@ -10,7 +10,7 @@ from .retrieve_register_entry import get_pending_bills, get_all_register_entries
 
 from .retrieve_memo_entry import get_memo_entry_id, get_memo_bills_by_id
 from .retrieve_memo_entry import get_memo_bill_id, get_all_memo_entries, get_memo_entry
-from .retrieve_memo_entry import get_next_available_memo_number
+from .retrieve_memo_entry import get_next_available_memo_number, supplier_is_out_station
 
 from .insert_order_form import insert_order_form, check_new_order_form
 from .update_order_form import update_order_form_data, update_order_form_by_id  

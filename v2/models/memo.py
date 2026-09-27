@@ -61,6 +61,8 @@ class MemoEntry(db.Model):
     less_gst_percentage: Mapped[Optional[float]] = MappedColumn(db.Numeric, nullable=True)
     less_gst: Mapped[int] = MappedColumn(db.Integer, default=0, nullable=False)
     commision: Mapped[Optional[int]] = MappedColumn(db.Integer, nullable=True)
+    # Out-station (non-Surat supplier) memos use a separate "OS-" numbering series.
+    is_out_station: Mapped[bool] = MappedColumn(db.Boolean, default=False, nullable=False)
     
     created_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
     last_updated_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)

@@ -115,6 +115,7 @@ CREATE TABLE memo_entry(
     less_gst_percentage DECIMAL,
     less_gst INT DEFAULT 0,
     commision INT DEFAULT 0,
+    is_out_station BOOLEAN DEFAULT FALSE,
     UNIQUE (memo_number, party_id, supplier_id, register_date),
     last_update TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

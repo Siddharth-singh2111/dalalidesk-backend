@@ -13,7 +13,7 @@ from .MemoBill import MemoBill
 from API_Database import insert_memo_entry
 from API_Database import retrieve_memo_entry, get_memo_entry, get_memo_entry_id, get_memo_bills_by_id
 from API_Database.retrieve_memo_dalali import calculate_commission, get_commission_rate
-from API_Database import get_next_available_memo_number
+from API_Database import get_next_available_memo_number, supplier_is_out_station
 from API_Database import update_part_payment
 from API_Database import parse_date, sql_date, delete_memo_payments
 from psql import transaction
@@ -69,6 +69,7 @@ class MemoEntry(Entry):
                  parent_dalali_id: Optional[int]=None, parent_memo_id: Optional[int]=None,
                  memo_type: str='Full', less_gst: int=0, commision: int=0,
                  gst_percentage: Union[int, float, str]=None,
+                 is_out_station: bool=None,
                  table_name: str='memo_entry', *args, **kwargs) -> None:
         """Initializes a MemoEntry with memo number, supplier ID, party ID, amount, mode, register date, and associated bills and payments."""
         super().__init__(*args, table_name=table_name, **kwargs)
@@ -102,6 +103,14 @@ class MemoEntry(Entry):
         # set it overrides the supplier's default so one supplier can have memos
         # at both rates; when None the supplier default is used.
         self.gst_percentage_override = int(gst_percentage) if gst_percentage not in (None, '') else None
+        # Out-station series flag. For a new memo we derive it from the supplier's
+        # city (Surat = normal series, anything else = OS- series) so it is always
+        # correct; when reconstructing a stored memo (from_dict passes the saved
+        # value) we keep that value so historical memos never change series.
+        if is_out_station is not None:
+            self.is_out_station = bool(is_out_station)
+        else:
+            self.is_out_station = supplier_is_out_station(supplier_id)
         self.memo_bills: List[MemoBill] = []
 
     def full_payment(self) -> None:
@@ -189,11 +198,12 @@ class MemoEntry(Entry):
         return get_memo_entry(memo_id)
 
     @staticmethod
-    def get_next_available_memo_number() -> int:
+    def get_next_available_memo_number(is_out_station: bool = False) -> int:
         """
-        Get the next available memo number
+        Get the next available memo number for the requested series (normal for
+        Surat suppliers, separate OS- series for out-station suppliers).
         """
-        return get_next_available_memo_number()
+        return get_next_available_memo_number(is_out_station)
 
     @staticmethod
     def get_json(supplier_id: int, party_id: int, memo_number: int) -> Dict:

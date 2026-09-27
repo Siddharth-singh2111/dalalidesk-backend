@@ -34,7 +34,7 @@ def get_pending_part(supplier_id: int, party_id: int) -> dict:
     for row in data:
         memo_id = row['memo_id']
         # Fetch memo bills associated with the memo_id
-        memo_bills_query = "SELECT memo_entry.id as memo_id, memo_entry.memo_number as memo_number, memo_bills.id AS bill_id, memo_bills.amount, to_char(memo_entry.register_date, 'DD/MM/YYYY') as date FROM memo_entry INNER JOIN memo_bills ON memo_entry.id = memo_bills.memo_id WHERE memo_entry.id = '{}' AND memo_bills.type = 'PR'".format(memo_id)
+        memo_bills_query = "SELECT memo_entry.id as memo_id, memo_entry.memo_number as memo_number, memo_entry.is_out_station as is_out_station, memo_bills.id AS bill_id, memo_bills.amount, to_char(memo_entry.register_date, 'DD/MM/YYYY') as date FROM memo_entry INNER JOIN memo_bills ON memo_entry.id = memo_bills.memo_id WHERE memo_entry.id = '{}' AND memo_bills.type = 'PR'".format(memo_id)
         cursor.execute(memo_bills_query)
         memo_bills = cursor.fetchall()
         row['memo_bills'] = memo_bills

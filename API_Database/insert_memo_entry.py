@@ -51,7 +51,7 @@ def insert_memo(entry: MemoEntry) -> None:
         'gr_amount_details', 'discount_details', 'other_deduction_details',
         'rate_difference_details', 'additions_details', 'notes',
         'parent_dalali_id', 'parent_memo_id', 'memo_type',
-        'less_gst_percentage', 'less_gst', 'commision'
+        'less_gst_percentage', 'less_gst', 'commision', 'is_out_station'
     ).insert(
         entry.supplier_id, entry.party_id, entry.memo_number, entry.register_date,
         entry.amount, entry.gr_amount, entry.deduction, entry.discount,
@@ -60,7 +60,8 @@ def insert_memo(entry: MemoEntry) -> None:
         discount_details_json, other_deduction_details_json, rate_difference_details_json,
         additions_details_json,
         notes_json, entry.parent_dalali_id, entry.parent_memo_id, entry.memo_type,
-        entry.less_gst_percentage, entry.less_gst, entry.commision
+        entry.less_gst_percentage, entry.less_gst, entry.commision,
+        bool(getattr(entry, 'is_out_station', False))
     )
     
     sql = insert_query.get_sql()

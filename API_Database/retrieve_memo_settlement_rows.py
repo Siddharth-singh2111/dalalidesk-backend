@@ -21,7 +21,7 @@ def get_memo_settlement_bulk(supplier_ids: List[int], party_ids: List[int], supp
         SELECT
             memo_entry.supplier_id as supplier_id, 
             memo_entry.party_id as party_id,
-            memo_entry.memo_number as memo_no,
+            (CASE WHEN memo_entry.is_out_station THEN 'OS-' || memo_entry.memo_number::text ELSE memo_entry.memo_number::text END) as memo_no,
             to_char(memo_entry.register_date, 'DD/MM/YYYY') as memo_date,
             memo_entry.amount as chk_amt,
             memo_bills.amount as memo_amt,
