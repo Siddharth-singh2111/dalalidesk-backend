@@ -606,6 +606,73 @@ def memo_summary(supplier_ids: List[int], party_ids: List[int],
     return data
 
 
+def supplier_list(supplier_ids: List[int], party_ids: List[int],
+                  start_date: str, end_date: str,
+                  supplier_all: bool = False, party_all: bool = False) -> Dict:
+    """
+    Full directory of all suppliers with their master details (name, city, PIN
+    code, phone, GSTIN, email, default GST %). This is a master list, so it is
+    NOT date-bound and ignores any supplier/party selection.
+    """
+    rows = execute_query(
+        "SELECT name, city, pin_code, phone_number, gstin, email, gst_default "
+        "FROM supplier ORDER BY name"
+    )['result']
+
+    data = _base('Supplier List', start_date, end_date)
+    data_rows = []
+    for r in rows:
+        gst = r.get('gst_default')
+        data_rows.append({
+            'name': r.get('name') or '-',
+            'city': r.get('city') or '-',
+            'pin_code': r.get('pin_code') or '-',
+            'phone': r.get('phone_number') or '-',
+            'gstin': r.get('gstin') or '-',
+            'email': r.get('email') or '-',
+            'gst_pct': (f"{float(gst):g}%" if gst is not None else '-'),
+        })
+    if data_rows:
+        data['headings'].append({
+            'title': 'Supplier List',
+            'subheadings': [{'title': '', 'dataRows': data_rows,
+                             'specialRows': [], 'displayOnIndex': False}],
+            'cumulative': {'name': 'Total Suppliers', 'value': str(len(data_rows))},
+        })
+    return data
+
+
+def party_list(supplier_ids: List[int], party_ids: List[int],
+               start_date: str, end_date: str,
+               supplier_all: bool = False, party_all: bool = False) -> Dict:
+    """
+    Full directory of all buyers (parties) with their master details (name,
+    address, phone, GSTIN). A master list, so NOT date-bound and it ignores any
+    supplier/party selection.
+    """
+    rows = execute_query(
+        "SELECT name, address, phone_number, gstin FROM party ORDER BY name"
+    )['result']
+
+    data = _base('Buyer List', start_date, end_date)
+    data_rows = []
+    for r in rows:
+        data_rows.append({
+            'name': r.get('name') or '-',
+            'address': r.get('address') or '-',
+            'phone': r.get('phone_number') or '-',
+            'gstin': r.get('gstin') or '-',
+        })
+    if data_rows:
+        data['headings'].append({
+            'title': 'Buyer List',
+            'subheadings': [{'title': '', 'dataRows': data_rows,
+                             'specialRows': [], 'displayOnIndex': False}],
+            'cumulative': {'name': 'Total Buyers', 'value': str(len(data_rows))},
+        })
+    return data
+
+
 CUSTOM_REPORTS = {
     'bills_added_report': bills_added_report,
     'supplier_wise_sale': supplier_wise_sale,
@@ -614,4 +681,6 @@ CUSTOM_REPORTS = {
     'local_dispatch_summary': local_dispatch_summary,
     'commission_summary': commission_summary,
     'memo_summary': memo_summary,
+    'supplier_list': supplier_list,
+    'party_list': party_list,
 }

@@ -184,6 +184,81 @@ def generate_commission_summary_excel():
         return jsonify({"error": "Failed to generate commission summary excel"}), 500
 
 
+@reports_bp.route('/supplier-list', methods=['GET'])
+def generate_supplier_list_excel():
+    """Full supplier directory (name, city, PIN, phone, GSTIN, email, GST %) as Excel."""
+    import pandas as pd
+    from psql import execute_query
+    from ..reports.utils import generate_excel_file
+
+    try:
+        query = """
+            SELECT name AS "Name",
+                   city AS "City",
+                   pin_code AS "PIN Code",
+                   phone_number AS "Phone",
+                   gstin AS "GSTIN",
+                   email AS "Email",
+                   gst_default AS "GST %"
+            FROM supplier
+            ORDER BY name
+        """
+        rows = execute_query(query)['result']
+        df = pd.DataFrame(rows, columns=[
+            "Name", "City", "PIN Code", "Phone", "GSTIN", "Email", "GST %",
+        ])
+        excel_file = generate_excel_file(df, sheet_name="Supplier List")
+        filename = f"Supplier_List_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        return send_file(
+            excel_file,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=filename,
+        )
+    except Exception as e:
+        stack_trace = traceback.format_exc()
+        current_app.logger.error(f"Error generating supplier list excel: {str(e)}\n{stack_trace}")
+        if current_app.debug:
+            return jsonify({"error": "Failed to generate supplier list excel",
+                            "details": str(e), "stack_trace": stack_trace}), 500
+        return jsonify({"error": "Failed to generate supplier list excel"}), 500
+
+
+@reports_bp.route('/party-list', methods=['GET'])
+def generate_party_list_excel():
+    """Full buyer (party) directory (name, address, phone, GSTIN) as Excel."""
+    import pandas as pd
+    from psql import execute_query
+    from ..reports.utils import generate_excel_file
+
+    try:
+        query = """
+            SELECT name AS "Name",
+                   address AS "Address",
+                   phone_number AS "Phone",
+                   gstin AS "GSTIN"
+            FROM party
+            ORDER BY name
+        """
+        rows = execute_query(query)['result']
+        df = pd.DataFrame(rows, columns=["Name", "Address", "Phone", "GSTIN"])
+        excel_file = generate_excel_file(df, sheet_name="Buyer List")
+        filename = f"Buyer_List_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        return send_file(
+            excel_file,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=filename,
+        )
+    except Exception as e:
+        stack_trace = traceback.format_exc()
+        current_app.logger.error(f"Error generating party list excel: {str(e)}\n{stack_trace}")
+        if current_app.debug:
+            return jsonify({"error": "Failed to generate party list excel",
+                            "details": str(e), "stack_trace": stack_trace}), 500
+        return jsonify({"error": "Failed to generate party list excel"}), 500
+
+
 @reports_bp.route('/dalali-memo', methods=['GET'])
 def generate_dalali_memo_report():
     """
