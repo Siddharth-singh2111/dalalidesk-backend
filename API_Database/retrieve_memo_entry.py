@@ -13,11 +13,16 @@ import sys
 import math
 sys.path.append('../')
 
-def check_new_memo(memo_number: int, date: datetime, *args, **kwargs) -> bool:
+def check_new_memo(memo_number: int, date: datetime, is_out_station: bool = False, *args, **kwargs) -> bool:
     """
-    Check if the memo already exists.
+    Check if the memo number is free. Surat (normal) and out-station (OS-) memos
+    are two independent number series, so a number is only a duplicate within the
+    SAME series — e.g. an OS- memo #1 does not clash with a normal memo #1.
     """
-    query = "select register_date, supplier_id, party_id from memo_entry where memo_number = '{}' order by 1 DESC".format(memo_number)
+    flag = 'TRUE' if is_out_station else 'FALSE'
+    query = ("select register_date, supplier_id, party_id from memo_entry "
+             "where memo_number = '{}' AND COALESCE(is_out_station, FALSE) = {} "
+             "order by 1 DESC").format(memo_number, flag)
     response = execute_query(query)
     result = response['result']
     if len(result) == 0:

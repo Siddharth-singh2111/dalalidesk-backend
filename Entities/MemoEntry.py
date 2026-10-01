@@ -178,10 +178,18 @@ class MemoEntry(Entry):
 
     @staticmethod
     def check_new(memo_number: int, register_date: Union[str, datetime], *args, **kwargs) -> bool:
-        """Checks if a memo entry with the given memo number and register date is new; returns a boolean."""
+        """Checks if a memo entry with the given memo number and register date is new; returns a boolean.
+
+        Out-station (non-Surat) memos use a separate OS- number series, so the
+        uniqueness check must be scoped to the right series. The client does not
+        send is_out_station, so it is derived from the supplier's city.
+        """
         memo_number = int(memo_number)
         register_date = parse_date(register_date)
-        return retrieve_memo_entry.check_new_memo(memo_number, register_date)
+        is_out_station = kwargs.get('is_out_station')
+        if is_out_station is None:
+            is_out_station = supplier_is_out_station(kwargs.get('supplier_id'))
+        return retrieve_memo_entry.check_new_memo(memo_number, register_date, bool(is_out_station))
 
     @staticmethod
     def get_memo_entry_id(supplier_id: int, party_id: int, memo_number: int) -> int:
