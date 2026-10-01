@@ -23,6 +23,8 @@ def make_report(data: Dict) -> Dict:
     select = data['report']
     start_date = data['from']
     end_date = data['to']
+    # Optional free-text remark, printed highlighted at the top of the report.
+    remark = (data.get('remark') or '').strip()
     if isinstance(supplier_ids, int):
         supplier_ids = [supplier_ids]
     if isinstance(party_ids, int):
@@ -31,14 +33,18 @@ def make_report(data: Dict) -> Dict:
     if select in options[0:4]:
         report_obj = report.Report(select, party_ids, supplier_ids, start_date, end_date)
         report_data = report_obj.generate_table(supplier_all=supplier_all, party_all=party_all)
-        return report_data
     elif select in CUSTOM_REPORTS:
         kwargs = dict(supplier_all=supplier_all, party_all=party_all)
         if select == 'local_dispatch_summary':
             kwargs['transport'] = data.get('transport') or None
             kwargs['user_id'] = data.get('user_id') or None
-        return CUSTOM_REPORTS[select](
+        report_data = CUSTOM_REPORTS[select](
             supplier_ids, party_ids, start_date, end_date, **kwargs,
         )
     else:
         raise Exception('Invalid Option')
+
+    # Attach the remark so the PDF renderer can print it at the top.
+    if remark and isinstance(report_data, dict):
+        report_data['remark'] = remark
+    return report_data
