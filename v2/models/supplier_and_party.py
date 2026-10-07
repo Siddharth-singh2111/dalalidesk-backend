@@ -43,7 +43,8 @@ class Supplier(db.Model):
     id: Mapped[int] = MappedColumn(db.Integer, primary_key=True)
     name: Mapped[str] = MappedColumn(db.String(100), nullable=False, unique=True)
     address: Mapped[Optional[str]] = MappedColumn(db.String(300), nullable=True)
-    phone_number: Mapped[Optional[str]] = MappedColumn(db.String(20), nullable=True)
+    # Holds one or more phone numbers (e.g. comma-separated).
+    phone_number: Mapped[Optional[str]] = MappedColumn(db.String(100), nullable=True)
     city: Mapped[Optional[str]] = MappedColumn(db.String(20), nullable=True)
     gst_default: Mapped[Optional[float]] = MappedColumn(db.Numeric, default=5.0, nullable=True)
     last_update: Mapped[datetime] = MappedColumn(db.TIMESTAMP, server_default=db.func.current_timestamp(), nullable=False)

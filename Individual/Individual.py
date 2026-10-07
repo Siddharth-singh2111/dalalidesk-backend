@@ -154,27 +154,39 @@ class Individual:
 
     def _parse_number(self, number: str) -> str:
         """
-        Checks if the number is a valid number. Defaults to "IN" (Indian) country code.
-        
+        Validates and formats one OR MORE phone numbers. Defaults to "IN" (Indian)
+        country code. Several numbers may be entered together separated by comma,
+        slash, semicolon or newline (e.g. "9839033575, 9532151391"); each is
+        validated and re-formatted, and they are returned comma-separated.
+
         Args:
-            number: The phone number to parse
-            
+            number: The phone number(s) to parse
+
         Returns:
-            str: The formatted phone number
-            
+            str: The formatted phone number(s), comma-separated
+
         Raises:
-            DataError: If the phone number is invalid
+            DataError: If any phone number is invalid
         """
         if number is None:
             return None
         if type(number) != str:
             print(f'WARNING: Provided phone number ({number}) is not a string.')
             number = str(number)
-        parsed_number = phonenumbers.parse(number, 'IN')
-        if not phonenumbers.is_valid_number(parsed_number):
-            raise DataError({'status': 'error', 'message': 'Invalid Phone Number', 'input_errors': {'phone_number': {'error': True, 'message': 'Invalid Phone Number'}}})
-        formatted_phone_number = phonenumbers.format_number(parsed_number, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
-        return formatted_phone_number
+        # Split into individual numbers on common separators.
+        parts = [p.strip() for p in re.split(r'[,/;\n]+', number) if p.strip()]
+        if not parts:
+            return None
+        formatted_numbers = []
+        for part in parts:
+            parsed_number = phonenumbers.parse(part, 'IN')
+            if not phonenumbers.is_valid_number(parsed_number):
+                raise DataError({'status': 'error', 'message': 'Invalid Phone Number',
+                                 'input_errors': {'phone_number': {'error': True,
+                                                                    'message': f'Invalid Phone Number: {part}'}}})
+            formatted_numbers.append(
+                phonenumbers.format_number(parsed_number, phonenumbers.PhoneNumberFormat.INTERNATIONAL))
+        return ', '.join(formatted_numbers)
 
     @classmethod
     def from_dict(cls, obj: Dict, *args, **kwargs) -> Individual:

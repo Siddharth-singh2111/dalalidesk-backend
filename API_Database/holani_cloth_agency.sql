@@ -5,7 +5,7 @@ CREATE TABLE supplier (
     id INT DEFAULT NEXTVAL ('supplier_seq') PRIMARY KEY,
     name VARCHAR(100),
     address VARCHAR(300),
-    phone_number VARCHAR(20),
+    phone_number VARCHAR(100),
     city VARCHAR(20) CHECK (city IN ('Bangalore', 'Jaipur', 'Kolkata', 'Surat', 'Varanasi', 'Belgaum', 'Mumbai', 'Delhi', 'Mau')),
     gst_default DECIMAL DEFAULT 5.0,
     gstin VARCHAR(20),
