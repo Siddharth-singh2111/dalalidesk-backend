@@ -38,6 +38,8 @@ def make_report(data: Dict) -> Dict:
         if select == 'local_dispatch_summary':
             kwargs['transport'] = data.get('transport') or None
             kwargs['user_id'] = data.get('user_id') or None
+        if select in ('supplier_wise_sale', 'supplier_wise_outstanding'):
+            kwargs['party_wise'] = bool(data.get('party_wise'))
         report_data = CUSTOM_REPORTS[select](
             supplier_ids, party_ids, start_date, end_date, **kwargs,
         )

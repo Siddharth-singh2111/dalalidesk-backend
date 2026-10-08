@@ -206,8 +206,78 @@ def _sale_summary(group: str, supplier_ids: List[int], party_ids: List[int],
     return data
 
 
+def _sale_party_wise(supplier_ids, party_ids, start_date, end_date,
+                     supplier_all, party_all) -> Dict:
+    """Supplier Wise Sale with a per-buyer breakdown under each supplier: one row
+    per buyer (bills/gross/GR/deduction/net), a supplier subtotal, and a grand total."""
+    from collections import OrderedDict
+    start = sql_date(parse_date(start_date))
+    end = sql_date(parse_date(end_date))
+    query = f"""
+        SELECT s.name AS supplier_name, p.name AS party_name,
+               COUNT(re.id) AS bills,
+               COALESCE(SUM(re.amount), 0) AS gross_amt,
+               COALESCE(SUM(re.gr_amount), 0) AS gr_amt,
+               COALESCE(SUM(re.deduction), 0) AS deduction,
+               COALESCE(SUM(re.amount - re.gr_amount - re.deduction), 0) AS net_amt
+        FROM register_entry re
+        LEFT JOIN supplier s ON re.supplier_id = s.id
+        LEFT JOIN party p ON re.party_id = p.id
+        WHERE re.register_date >= '{start}' AND re.register_date <= '{end}'
+        {_id_filter('re.supplier_id', supplier_ids, supplier_all)}
+        {_id_filter('re.party_id', party_ids, party_all)}
+        GROUP BY s.name, p.name
+        ORDER BY s.name, p.name
+    """
+    rows = execute_query(query)['result']
+    groups = OrderedDict()
+    for row in rows:
+        groups.setdefault(row['supplier_name'] or '-', []).append(row)
+
+    data = _base('Supplier Wise Sale', start, end)
+    grand = {'bills': 0, 'gross_amt': 0, 'gr_amt': 0, 'deduction': 0, 'net_amt': 0}
+    for supplier, buyer_rows in groups.items():
+        drows = []
+        stot = {'bills': 0, 'gross_amt': 0, 'gr_amt': 0, 'deduction': 0, 'net_amt': 0}
+        for row in buyer_rows:
+            for k in stot:
+                stot[k] += int(row[k] or 0)
+                grand[k] += int(row[k] or 0)
+            drows.append({
+                'buyer': row['party_name'] or '-',
+                'bills': int(row['bills'] or 0),
+                'gross_amt': _fmt(row['gross_amt']),
+                'gr_amt': _fmt(row['gr_amt']),
+                'deduction': _fmt(row['deduction']),
+                'net_amt': _fmt(row['net_amt']),
+            })
+        special = [_total_row('Total (=) ', stot[col], col)
+                   for col in ('gross_amt', 'gr_amt', 'deduction', 'net_amt')]
+        data['headings'].append({
+            'title': supplier,
+            'subheadings': [{'title': '', 'dataRows': drows,
+                             'specialRows': special, 'displayOnIndex': False}],
+            'cumulative': {'name': 'Net Sale', 'value': _fmt(stot['net_amt'])},
+        })
+
+    if data['headings']:
+        data['headings'].append({
+            'title': 'Grand Total',
+            'subheadings': [{
+                'title': '',
+                'dataRows': [{'bills': grand['bills'], 'net_amt': _fmt(grand['net_amt'])}],
+                'specialRows': [],
+                'displayOnIndex': False,
+            }],
+        })
+    return data
+
+
 def supplier_wise_sale(supplier_ids, party_ids, start_date, end_date,
-                       supplier_all=False, party_all=False) -> Dict:
+                       supplier_all=False, party_all=False, party_wise=False) -> Dict:
+    if party_wise:
+        return _sale_party_wise(supplier_ids, party_ids, start_date, end_date,
+                                supplier_all, party_all)
     return _sale_summary('supplier', supplier_ids, party_ids, start_date, end_date,
                          supplier_all, party_all)
 
@@ -218,12 +288,79 @@ def buyer_wise_sale(supplier_ids, party_ids, start_date, end_date,
                          supplier_all, party_all)
 
 
+def _outstanding_party_wise(rows, start, end) -> Dict:
+    """Outstanding bills grouped per supplier, then per buyer, with a subtotal for
+    each buyer and the supplier's overall outstanding. Keeps each aged bill."""
+    from collections import OrderedDict
+    groups = OrderedDict()
+    for row in rows:
+        s = row['supplier_name'] or '-'
+        b = row['party_name'] or '-'
+        groups.setdefault(s, OrderedDict()).setdefault(b, []).append(row)
+
+    data = _base('Supplier Wise Outstanding Bills', start, end)
+    grand_pending = 0
+    grand_count = 0
+    for supplier, buyers in groups.items():
+        subheadings = []
+        supplier_pending = 0
+        for buyer, bills in buyers.items():
+            drows = []
+            bill_total = 0
+            pending_total = 0
+            for row in bills:
+                pending = int(row['pending_amt'] or 0)
+                bill_amount = int(row['amount'] or 0)
+                bill_total += bill_amount
+                pending_total += pending
+                drows.append({
+                    'bill_no': row['bill_number'],
+                    'bill_date': _fmt_date(row['register_date']),
+                    'days_old': int(row['days_old'] or 0),
+                    'bill_amt': _fmt(bill_amount),
+                    'pending_amt': _fmt(pending),
+                })
+            supplier_pending += pending_total
+            grand_pending += pending_total
+            grand_count += len(bills)
+            subheadings.append({
+                # "Buyer: " prefix makes the PDF label this subheading as BUYER
+                # (the renderer infers the entity label from the title prefix).
+                'title': f'Buyer: {buyer}',
+                'dataRows': drows,
+                'specialRows': [
+                    _total_row('Total (=) ', bill_total, 'bill_amt'),
+                    _total_row('Pending (=) ', pending_total, 'pending_amt'),
+                ],
+                'displayOnIndex': False,
+            })
+        data['headings'].append({
+            'title': supplier,
+            'subheadings': subheadings,
+            'cumulative': {'name': 'Outstanding', 'value': _fmt(supplier_pending)},
+        })
+
+    if grand_count:
+        data['headings'].append({
+            'title': 'Grand Total',
+            'subheadings': [{
+                'title': '',
+                'dataRows': [{'pending_bills': grand_count, 'total_outstanding': _fmt(grand_pending)}],
+                'specialRows': [],
+                'displayOnIndex': False,
+            }],
+        })
+    return data
+
+
 def supplier_wise_outstanding(supplier_ids: List[int], party_ids: List[int],
                               start_date: str, end_date: str,
-                              supplier_all: bool = False, party_all: bool = False) -> Dict:
+                              supplier_all: bool = False, party_all: bool = False,
+                              party_wise: bool = False) -> Dict:
     """
     Unsettled bills (pending amount > 0) grouped per supplier, with ageing in days.
-    The date range filters on the bill date.
+    The date range filters on the bill date. With party_wise=True, bills are further
+    grouped by buyer within each supplier, with a subtotal per buyer.
     """
     start = sql_date(parse_date(start_date))
     end = sql_date(parse_date(end_date))
@@ -243,6 +380,9 @@ def supplier_wise_outstanding(supplier_ids: List[int], party_ids: List[int],
         ORDER BY s.name, p.name, re.register_date, re.bill_number
     """
     rows = execute_query(query)['result']
+
+    if party_wise:
+        return _outstanding_party_wise(rows, start, end)
 
     data = _base('Supplier Wise Outstanding Bills', start, end)
     grand_pending = 0
