@@ -445,6 +445,164 @@ def supplier_wise_outstanding(supplier_ids: List[int], party_ids: List[int],
     return data
 
 
+def _outstanding_by_buyer(rows, start, end) -> Dict:
+    """Outstanding bills grouped per buyer, then per supplier, with a subtotal for
+    each supplier and the buyer's overall outstanding. Mirror of
+    _outstanding_party_wise. Keeps each aged bill."""
+    from collections import OrderedDict
+    groups = OrderedDict()
+    for row in rows:
+        b = row['party_name'] or '-'
+        s = row['supplier_name'] or '-'
+        groups.setdefault(b, OrderedDict()).setdefault(s, []).append(row)
+
+    data = _base('Buyer Wise Outstanding Bills', start, end)
+    grand_pending = 0
+    grand_count = 0
+    for buyer, suppliers in groups.items():
+        subheadings = []
+        buyer_pending = 0
+        for supplier, bills in suppliers.items():
+            drows = []
+            bill_total = 0
+            pending_total = 0
+            for row in bills:
+                pending = int(row['pending_amt'] or 0)
+                bill_amount = int(row['amount'] or 0)
+                bill_total += bill_amount
+                pending_total += pending
+                drows.append({
+                    'bill_no': row['bill_number'],
+                    'bill_date': _fmt_date(row['register_date']),
+                    'days_old': int(row['days_old'] or 0),
+                    'bill_amt': _fmt(bill_amount),
+                    'pending_amt': _fmt(pending),
+                })
+            buyer_pending += pending_total
+            grand_pending += pending_total
+            grand_count += len(bills)
+            subheadings.append({
+                # "Supplier: " prefix makes the PDF label this subheading as SUPPLIER.
+                'title': f'Supplier: {supplier}',
+                'dataRows': drows,
+                'specialRows': [
+                    _total_row('Total (=) ', bill_total, 'bill_amt'),
+                    _total_row('Pending (=) ', pending_total, 'pending_amt'),
+                ],
+                'displayOnIndex': False,
+            })
+        data['headings'].append({
+            # "Buyer: " prefix makes the PDF label this heading as BUYER.
+            'title': f'Buyer: {buyer}',
+            'subheadings': subheadings,
+            'cumulative': {'name': 'Outstanding', 'value': _fmt(buyer_pending)},
+        })
+
+    if grand_count:
+        data['headings'].append({
+            'title': 'Grand Total',
+            'subheadings': [{
+                'title': '',
+                'dataRows': [{'pending_bills': grand_count, 'total_outstanding': _fmt(grand_pending)}],
+                'specialRows': [],
+                'displayOnIndex': False,
+            }],
+        })
+    return data
+
+
+def buyer_wise_outstanding(supplier_ids: List[int], party_ids: List[int],
+                           start_date: str, end_date: str,
+                           supplier_all: bool = False, party_all: bool = False,
+                           party_wise: bool = False) -> Dict:
+    """
+    Unsettled bills (pending amount > 0) grouped per buyer, with ageing in days —
+    the mirror of supplier_wise_outstanding. With party_wise=True, bills are
+    further grouped by supplier within each buyer, with a subtotal per supplier.
+    """
+    start = sql_date(parse_date(start_date))
+    end = sql_date(parse_date(end_date))
+    query = f"""
+        SELECT s.name AS supplier_name, p.name AS party_name,
+               re.bill_number, re.register_date, re.amount,
+               (re.amount - re.gr_amount - re.deduction - re.partial_amount) AS pending_amt,
+               (CURRENT_DATE - re.register_date::date) AS days_old
+        FROM register_entry re
+        LEFT JOIN supplier s ON re.supplier_id = s.id
+        LEFT JOIN party p ON re.party_id = p.id
+        WHERE re.status != 'F'
+          AND (re.amount - re.gr_amount - re.deduction - re.partial_amount) > 0
+          AND re.register_date >= '{start}' AND re.register_date <= '{end}'
+        {_id_filter('re.supplier_id', supplier_ids, supplier_all)}
+        {_id_filter('re.party_id', party_ids, party_all)}
+        ORDER BY p.name, s.name, re.register_date, re.bill_number
+    """
+    rows = execute_query(query)['result']
+
+    if party_wise:
+        return _outstanding_by_buyer(rows, start, end)
+
+    data = _base('Buyer Wise Outstanding Bills', start, end)
+    grand_pending = 0
+    grand_count = 0
+    current_buyer: Optional[str] = None
+    current_heading: Optional[Dict] = None
+
+    def close_buyer():
+        if current_heading is None:
+            return
+        sub = current_heading['subheadings'][0]
+        bill_total = sum(r['_bill'] for r in sub['dataRows'])
+        pending_total = sum(r['_pending'] for r in sub['dataRows'])
+        for r in sub['dataRows']:
+            r['bill_amt'] = _fmt(r.pop('_bill'))
+            r['pending_amt'] = _fmt(r.pop('_pending'))
+        sub['specialRows'] = [
+            _total_row('Total (=) ', bill_total, 'bill_amt'),
+            _total_row('Pending (=) ', pending_total, 'pending_amt'),
+        ]
+        current_heading['cumulative'] = {'name': 'Outstanding', 'value': _fmt(pending_total)}
+        data['headings'].append(current_heading)
+
+    for row in rows:
+        buyer = row['party_name'] or '-'
+        if buyer != current_buyer:
+            close_buyer()
+            current_buyer = buyer
+            current_heading = {
+                'title': f'Buyer: {buyer}',
+                'subheadings': [{'title': '', 'dataRows': [], 'specialRows': [],
+                                 'displayOnIndex': False}],
+            }
+        pending = int(row['pending_amt'] or 0)
+        bill_amount = int(row['amount'] or 0)
+        current_heading['subheadings'][0]['dataRows'].append({
+            'supplier': row['supplier_name'] or '-',
+            'bill_no': row['bill_number'],
+            'bill_date': _fmt_date(row['register_date']),
+            'days_old': int(row['days_old'] or 0),
+            'bill_amt': None,
+            'pending_amt': None,
+            '_bill': bill_amount,
+            '_pending': pending,
+        })
+        grand_pending += pending
+        grand_count += 1
+    close_buyer()
+
+    if grand_count:
+        data['headings'].append({
+            'title': 'Grand Total',
+            'subheadings': [{
+                'title': '',
+                'dataRows': [{'pending_bills': grand_count, 'total_outstanding': _fmt(grand_pending)}],
+                'specialRows': [],
+                'displayOnIndex': False,
+            }],
+        })
+    return data
+
+
 def local_dispatch_summary(supplier_ids: List[int], party_ids: List[int],
                            start_date: str, end_date: str,
                            supplier_all: bool = False, party_all: bool = False,
@@ -818,6 +976,7 @@ CUSTOM_REPORTS = {
     'supplier_wise_sale': supplier_wise_sale,
     'buyer_wise_sale': buyer_wise_sale,
     'supplier_wise_outstanding': supplier_wise_outstanding,
+    'buyer_wise_outstanding': buyer_wise_outstanding,
     'local_dispatch_summary': local_dispatch_summary,
     'commission_summary': commission_summary,
     'memo_summary': memo_summary,
