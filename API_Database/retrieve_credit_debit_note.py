@@ -40,6 +40,24 @@ def get_all_credit_debit_notes(**kwargs):
     return response['result']
 
 
+def credit_debit_note_exists(note_type, note_number, supplier_id, party_id) -> bool:
+    """
+    True if a note with the same type, number and supplier-party account already
+    exists. Used to stop the same credit/debit note number being saved twice for
+    an account. A blank/None number is never treated as a duplicate.
+    """
+    if note_number in (None, ''):
+        return False
+    note_type_safe = str(note_type).replace("'", "''")
+    query = (
+        "SELECT 1 FROM credit_debit_note "
+        "WHERE note_type = '{}' AND note_number = {} "
+        "AND supplier_id = {} AND party_id = {} LIMIT 1"
+    ).format(note_type_safe, int(note_number), int(supplier_id), int(party_id))
+    response = execute_query(query)
+    return len(response['result']) > 0
+
+
 def get_credit_debit_khata_rows_bulk(supplier_ids, party_ids, start_date, end_date,
                                      supplier_all: bool = False, party_all: bool = False):
     """

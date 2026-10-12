@@ -60,8 +60,25 @@ class CreditDebitNote(Entry):
 
     @classmethod
     def insert(cls, data: Dict, get_cls: bool = False) -> Dict:
-        """Inserts a new credit/debit note and returns the insertion status."""
+        """Inserts a new credit/debit note and returns the insertion status.
+
+        Rejects a duplicate: the same note number may not be saved twice for the
+        same note type and supplier-party account.
+        """
         note = cls.from_dict(data)
+        if note.note_number is not None and retrieve_credit_debit_note.credit_debit_note_exists(
+                note.note_type, note.note_number, note.supplier_id, note.party_id):
+            return {
+                'status': 'error',
+                'message': f'Duplicate note number: a {note.note_type} note #{note.note_number} '
+                           f'already exists for this supplier-party account.',
+                'input_errors': {
+                    'note_number': {
+                        'error': True,
+                        'message': f'A {note.note_type} note #{note.note_number} already exists for this account.',
+                    }
+                },
+            }
         ret = insert_credit_debit_note.insert_credit_debit_note(note)
         if get_cls and ret.get('status') == 'okay':
             ret['class'] = note
