@@ -92,6 +92,48 @@ def set_user_permissions(user_id, permissions, updated_by=None):
     return get_user_permissions_matrix(user_id)
 
 
+def get_effective_permissions_matrix(user):
+    """The user's EFFECTIVE permissions, matching User.has_permission's logic, for
+    driving UI menu visibility: admin => everything; else the user's own rows when
+    they have any; else the role template. Keeps the menu in sync with enforcement.
+    """
+    role = getattr(user, 'role', None)
+    if role == 'admin':
+        return [{
+            'resource': r, 'label': l,
+            'can_create': True, 'can_read': True, 'can_update': True, 'can_delete': True,
+        } for r, l in RESOURCE_CATALOG]
+
+    res = execute_query(
+        "SELECT resource, can_create, can_read, can_update, can_delete "
+        "FROM user_permissions WHERE user_id = {}".format(int(user.id))
+    )
+    rows = {}
+    if res.get('status') == 'okay' and res['result']:
+        rows = {row['resource']: row for row in res['result']}
+    else:
+        # No per-user rows: fall back to the role matrix.
+        role_safe = str(role or '').replace("'", "''")
+        rres = execute_query(
+            "SELECT resource, can_create, can_read, can_update, can_delete "
+            "FROM permissions WHERE role = '{}'".format(role_safe)
+        )
+        if rres.get('status') == 'okay':
+            rows = {row['resource']: row for row in rres['result']}
+
+    matrix = []
+    for resource, label in RESOURCE_CATALOG:
+        row = rows.get(resource)
+        matrix.append({
+            'resource': resource, 'label': label,
+            'can_create': bool(row['can_create']) if row else False,
+            'can_read': bool(row['can_read']) if row else False,
+            'can_update': bool(row['can_update']) if row else False,
+            'can_delete': bool(row['can_delete']) if row else False,
+        })
+    return matrix
+
+
 def seed_default_user_permissions(user_id):
     """Give a brand-new user the standard 'user' role template so they are usable
     immediately; the admin can then adjust each checkbox."""

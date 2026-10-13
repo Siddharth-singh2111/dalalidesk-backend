@@ -37,6 +37,7 @@ from .delete_entry import delete_by_id, delete_memo_payments
 from .user_permissions import (
     RESOURCE_CATALOG,
     get_user_permissions_matrix,
+    get_effective_permissions_matrix,
     set_user_permissions,
     seed_default_user_permissions,
 )

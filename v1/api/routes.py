@@ -13,7 +13,7 @@ from pypika import Query, Table, functions as fn
 from hca_backend.psql import execute_query
 from hca_backend.API_Database import retrieve_indivijual, retrieve_credit, retrieve_register_entry, retrieve_memo_dalali, update_memo_dalali
 from hca_backend.API_Database import retrieve_credit_debit_note
-from hca_backend.API_Database import get_user_permissions_matrix, set_user_permissions, RESOURCE_CATALOG
+from hca_backend.API_Database import get_user_permissions_matrix, get_effective_permissions_matrix, set_user_permissions, RESOURCE_CATALOG
 from hca_backend.OCR.name_cache import NameMatchCache
 from hca_backend.API_Database import retrieve_all, retrieve_from_id, search_entities
 from hca_backend.API_Database import retrieve_memo_entry
@@ -437,7 +437,7 @@ def get_my_permissions():
         return jsonify({
             'status': 'okay',
             'is_admin': current_user.role == 'admin',
-            'permissions': get_user_permissions_matrix(current_user.id),
+            'permissions': get_effective_permissions_matrix(current_user),
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
