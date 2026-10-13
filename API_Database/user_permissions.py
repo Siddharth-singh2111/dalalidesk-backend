@@ -12,7 +12,6 @@ RESOURCE_CATALOG = [
     ('register_entry', 'Bills (Register)'),
     ('memo_entry', 'Memos'),
     ('order_form', 'Order Forms'),
-    ('credit_debit_note', 'Credit / Debit Notes'),
     ('dalali_entry', 'Dalali'),
     ('supplier', 'Suppliers'),
     ('party', 'Buyers (Parties)'),
