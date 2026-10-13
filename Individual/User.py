@@ -102,7 +102,11 @@ class User(Individual):
         """
         if not self.is_active:
             return False
-            
+
+        # Admins always have full access (and reach the admin panel).
+        if self.role == 'admin':
+            return True
+
         # Map action to permission field
         action_map = {
             'create': 'can_create',
@@ -110,19 +114,37 @@ class User(Individual):
             'update': 'can_update',
             'delete': 'can_delete'
         }
-        
+
         if action not in action_map:
             return False
-            
+
         permission_field = action_map[action]
-        
-        # Query the permissions table
-        query = f"""
-        SELECT {permission_field}
-        FROM permissions
-        WHERE role = '{self.role}' AND resource = '{resource}'
-        """
-        
+
+        # Prefer per-user permissions when this user has any rows; otherwise fall
+        # back to the role-based matrix so pre-existing users keep working.
+        # (resource/action come from the @permission_required guards, not user input.)
+        try:
+            count_res = execute_query(
+                f"SELECT COUNT(*) AS n FROM user_permissions WHERE user_id = {int(self.id)}"
+            )
+            has_user_perms = (
+                count_res['status'] == 'okay' and count_res['result']
+                and int(count_res['result'][0]['n']) > 0
+            )
+        except Exception:
+            has_user_perms = False
+
+        if has_user_perms:
+            query = (
+                f"SELECT {permission_field} FROM user_permissions "
+                f"WHERE user_id = {int(self.id)} AND resource = '{resource}'"
+            )
+        else:
+            query = (
+                f"SELECT {permission_field} FROM permissions "
+                f"WHERE role = '{self.role}' AND resource = '{resource}'"
+            )
+
         try:
             result = execute_query(query)
             if result['status'] == 'okay' and result['result']:
@@ -289,27 +311,34 @@ class User(Individual):
         
         # Hash the password
         password_hash = cls.hash_password(password)
-        
-        # Prepare created_by and last_updated_by fields
-        created_by_str = f", created_by = {created_by}" if created_by else ""
-        last_updated_by_str = f", last_updated_by = {created_by}" if created_by else ""
-        
-        # Insert the new user
+
+        # Insert the core columns. created_by / last_updated_by are stamped
+        # automatically by execute_query's audit layer when a user is in context.
+        columns = ['username', 'password_hash', 'role', 'full_name', 'email', 'is_active']
+        values = [
+            f"'{username}'", f"'{password_hash}'", f"'{role}'",
+            f"'{full_name}'", f"'{email}'", 'TRUE',
+        ]
+
         query = f"""
-        INSERT INTO users (
-            username, password_hash, role, full_name, email, is_active
-            {created_by_str}{last_updated_by_str}
-        )
-        VALUES (
-            '{username}', '{password_hash}', '{role}', '{full_name}', '{email}', TRUE
-        )
+        INSERT INTO users ({', '.join(columns)})
+        VALUES ({', '.join(values)})
         RETURNING *
         """
         
         try:
             result = execute_query(query)
             if result['status'] == 'okay' and result['result']:
-                return cls.from_dict(result['result'][0])
+                new_user = cls.from_dict(result['result'][0])
+                # Give non-admin users the default permission template so they are
+                # usable right away; the admin can then adjust each checkbox.
+                if role != 'admin':
+                    try:
+                        from API_Database import seed_default_user_permissions
+                        seed_default_user_permissions(new_user.id)
+                    except Exception:
+                        pass
+                return new_user
             raise DataError({
                 'status': 'error',
                 'message': 'Failed to create user',

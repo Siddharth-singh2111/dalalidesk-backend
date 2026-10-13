@@ -13,6 +13,7 @@ from pypika import Query, Table, functions as fn
 from hca_backend.psql import execute_query
 from hca_backend.API_Database import retrieve_indivijual, retrieve_credit, retrieve_register_entry, retrieve_memo_dalali, update_memo_dalali
 from hca_backend.API_Database import retrieve_credit_debit_note
+from hca_backend.API_Database import get_user_permissions_matrix, set_user_permissions, RESOURCE_CATALOG
 from hca_backend.OCR.name_cache import NameMatchCache
 from hca_backend.API_Database import retrieve_all, retrieve_from_id, search_entities
 from hca_backend.API_Database import retrieve_memo_entry
@@ -378,6 +379,69 @@ def delete_user(user_id):
             'status': 'error',
             'message': f'Error deleting user: {str(e)}'
         }), 500
+
+@v1_bp.route('/permissions/catalog', methods=['GET'])
+@jwt_required()
+@permission_required('users', 'read')
+def get_permissions_catalog():
+    """List the features (resources) that can be toggled per user."""
+    return jsonify({'status': 'okay', 'catalog': [
+        {'resource': r, 'label': label} for r, label in RESOURCE_CATALOG
+    ]})
+
+
+@v1_bp.route('/users/<int:user_id>/permissions', methods=['GET'])
+@jwt_required()
+@permission_required('users', 'read')
+def get_user_permissions_route(user_id):
+    """Return a user's per-feature View/Add/Edit/Delete matrix."""
+    try:
+        user = User.retrieve(user_id)
+        if not user:
+            return jsonify({'status': 'error', 'message': 'User not found'}), 404
+        return jsonify({
+            'status': 'okay',
+            'is_admin': user.role == 'admin',
+            'permissions': get_user_permissions_matrix(user_id),
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@v1_bp.route('/users/<int:user_id>/permissions', methods=['PUT'])
+@jwt_required()
+@permission_required('users', 'update')
+def set_user_permissions_route(user_id):
+    """Save a user's per-feature permission matrix."""
+    try:
+        user = User.retrieve(user_id)
+        if not user:
+            return jsonify({'status': 'error', 'message': 'User not found'}), 404
+        data = request.json or {}
+        permissions = data.get('permissions', [])
+        updated_by = get_user_id_from_token()
+        matrix = set_user_permissions(user_id, permissions, updated_by=updated_by)
+        return jsonify({'status': 'okay', 'permissions': matrix})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@v1_bp.route('/me/permissions', methods=['GET'])
+@jwt_required()
+def get_my_permissions():
+    """The current user's own effective permission matrix (for UI gating)."""
+    try:
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'status': 'error', 'message': 'Not authenticated'}), 401
+        return jsonify({
+            'status': 'okay',
+            'is_admin': current_user.role == 'admin',
+            'permissions': get_user_permissions_matrix(current_user.id),
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 @v1_bp.route('/profile', methods=['GET'])
 @jwt_required()

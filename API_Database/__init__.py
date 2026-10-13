@@ -33,3 +33,10 @@ from .update_item_entry import update_item_entry
 from .insert_remote_query_log import insert_remote_query_log
 
 from .delete_entry import delete_by_id, delete_memo_payments
+
+from .user_permissions import (
+    RESOURCE_CATALOG,
+    get_user_permissions_matrix,
+    set_user_permissions,
+    seed_default_user_permissions,
+)
