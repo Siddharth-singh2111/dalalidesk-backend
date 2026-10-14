@@ -11,6 +11,7 @@ CREATE TABLE supplier (
     gstin VARCHAR(20),
     email VARCHAR(120),
     pin_code VARCHAR(10),
+    default_firm_id INT,
     UNIQUE (name),
     last_update TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

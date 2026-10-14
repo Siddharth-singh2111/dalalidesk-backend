@@ -11,8 +11,9 @@ def get_all_names_ids(name: str, dict_cursor: bool=True) -> dict:
     """
     (db, cursor) = db_connector.cursor(dict_cursor)
     if name == 'supplier':
-        # gst_default lets the memo screen default the GST rate per supplier.
-        query = 'select id, name, gstin, gst_default from supplier order by lower(name);'
+        # gst_default lets the memo screen default the GST rate per supplier;
+        # default_firm_id pre-fills the receiver firm on the dalali entry screen.
+        query = 'select id, name, gstin, gst_default, default_firm_id from supplier order by lower(name);'
     elif name == 'party':
         query = 'select id, name, gstin from party order by lower(name);'
     elif name == 'firm_bank':

@@ -55,6 +55,12 @@ class Individual:
         # Optional supplier contact fields (empty -> None).
         self.email = (str(kwargs.get('email')).strip() or None) if kwargs.get('email') is not None else None
         self.pin_code = (str(kwargs.get('pin_code')).strip() or None) if kwargs.get('pin_code') is not None else None
+        # Supplier-only: optional default firm (pre-fills the dalali receiver firm).
+        default_firm_id = kwargs.get('default_firm_id', None)
+        if default_firm_id is None or str(default_firm_id).strip() == '':
+            self.default_firm_id = None
+        else:
+            self.default_firm_id = int(default_firm_id)
         self.table_name = table_name
         self.id = kwargs.get('id', None)
         if self.id is not None:
@@ -103,6 +109,7 @@ class Individual:
         if self.table_name == 'supplier':
             update_fields.append(f"email='{_strip_quotes(self.email)}'" if self.email else "email=NULL")
             update_fields.append(f"pin_code='{_strip_quotes(self.pin_code)}'" if self.pin_code else "pin_code=NULL")
+            update_fields.append(f"default_firm_id={self.default_firm_id}" if self.default_firm_id is not None else "default_firm_id=NULL")
         # Add audit fields
         if current_user_id is not None:
             update_fields.append(f"last_updated=CURRENT_TIMESTAMP")
@@ -272,6 +279,10 @@ class Individual:
         if entity.table_name == 'supplier' and getattr(entity, 'pin_code', None):
             columns.append('pin_code')
             values.append(f"'{remove_single_quotes(entity.pin_code)}'")
+
+        if entity.table_name == 'supplier' and getattr(entity, 'default_firm_id', None) is not None:
+            columns.append('default_firm_id')
+            values.append(str(entity.default_firm_id))
 
         # Add audit fields
         if current_user_id is not None:
