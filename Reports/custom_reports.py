@@ -971,12 +971,99 @@ def party_list(supplier_ids: List[int], party_ids: List[int],
     return data
 
 
+def _memo_list_grouped(group, supplier_ids, party_ids, start_date, end_date,
+                       supplier_all, party_all) -> Dict:
+    """Memos in a date range grouped per supplier (group='supplier') or per buyer
+    (group='party'): each memo listed with its date, the other party, amount and
+    commission, with a per-group subtotal, memo count and a grand total."""
+    from collections import OrderedDict
+    is_supplier = group == 'supplier'
+    start = sql_date(parse_date(start_date))
+    end = sql_date(parse_date(end_date))
+    query = f"""
+        SELECT me.memo_number, me.is_out_station, me.register_date,
+               s.name AS supplier_name, p.name AS party_name,
+               COALESCE(me.amount, 0) AS memo_amt,
+               COALESCE(me.commision, 0) AS commission
+        FROM memo_entry me
+        LEFT JOIN supplier s ON me.supplier_id = s.id
+        LEFT JOIN party p ON me.party_id = p.id
+        WHERE me.register_date >= '{start}' AND me.register_date <= '{end}'
+        {_id_filter('me.supplier_id', supplier_ids, supplier_all)}
+        {_id_filter('me.party_id', party_ids, party_all)}
+        ORDER BY {'s.name' if is_supplier else 'p.name'}, me.register_date, me.memo_number
+    """
+    rows = execute_query(query)['result']
+
+    title = 'Supplier Wise Memo List' if is_supplier else 'Buyer Wise Memo List'
+    data = _base(title, start, end)
+    groups = OrderedDict()
+    for row in rows:
+        key = (row['supplier_name'] if is_supplier else row['party_name']) or '-'
+        groups.setdefault(key, []).append(row)
+
+    grand_amt = grand_comm = grand_count = 0
+    other_col = 'party' if is_supplier else 'supplier'
+    for name, grows in groups.items():
+        drows = []
+        gamt = gcomm = 0
+        for row in grows:
+            amt = int(row['memo_amt'] or 0)
+            comm = int(row['commission'] or 0)
+            gamt += amt
+            gcomm += comm
+            drows.append({
+                'memo_no': _memo_no(row),
+                'memo_date': _fmt_date(row['register_date']),
+                other_col: (row['party_name'] if is_supplier else row['supplier_name']) or '-',
+                'amount': _fmt(amt),
+                'commission': _fmt(comm),
+            })
+        grand_amt += gamt
+        grand_comm += gcomm
+        grand_count += len(grows)
+        data['headings'].append({
+            'title': f"{'Supplier' if is_supplier else 'Buyer'}: {name}",
+            'subheadings': [{'title': '', 'dataRows': drows,
+                             'specialRows': [_total_row('Total (=) ', gamt, 'amount'),
+                                             _total_row('Total (=) ', gcomm, 'commission')],
+                             'displayOnIndex': False}],
+            'cumulative': {'name': 'Memos', 'value': str(len(grows))},
+        })
+
+    if grand_count:
+        data['headings'].append({
+            'title': 'Grand Total',
+            'subheadings': [{
+                'title': '',
+                'dataRows': [{'memos': grand_count, 'amount': _fmt(grand_amt), 'commission': _fmt(grand_comm)}],
+                'specialRows': [],
+                'displayOnIndex': False,
+            }],
+        })
+    return data
+
+
+def supplier_wise_memo_list(supplier_ids, party_ids, start_date, end_date,
+                            supplier_all=False, party_all=False) -> Dict:
+    return _memo_list_grouped('supplier', supplier_ids, party_ids, start_date, end_date,
+                              supplier_all, party_all)
+
+
+def buyer_wise_memo_list(supplier_ids, party_ids, start_date, end_date,
+                         supplier_all=False, party_all=False) -> Dict:
+    return _memo_list_grouped('party', supplier_ids, party_ids, start_date, end_date,
+                              supplier_all, party_all)
+
+
 CUSTOM_REPORTS = {
     'bills_added_report': bills_added_report,
     'supplier_wise_sale': supplier_wise_sale,
     'buyer_wise_sale': buyer_wise_sale,
     'supplier_wise_outstanding': supplier_wise_outstanding,
     'buyer_wise_outstanding': buyer_wise_outstanding,
+    'supplier_wise_memo_list': supplier_wise_memo_list,
+    'buyer_wise_memo_list': buyer_wise_memo_list,
     'local_dispatch_summary': local_dispatch_summary,
     'commission_summary': commission_summary,
     'memo_summary': memo_summary,
