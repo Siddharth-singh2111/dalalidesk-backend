@@ -173,19 +173,27 @@ class Individual:
         if type(number) != str:
             print(f'WARNING: Provided phone number ({number}) is not a string.')
             number = str(number)
-        # Split into individual numbers on common separators.
+        # Split into individual numbers on common separators. Each entry may be
+        # tagged with a type, e.g. "Owner: 9839033575" — the label is kept and
+        # only the number part is validated/formatted.
         parts = [p.strip() for p in re.split(r'[,/;\n]+', number) if p.strip()]
         if not parts:
             return None
         formatted_numbers = []
         for part in parts:
-            parsed_number = phonenumbers.parse(part, 'IN')
+            label = ''
+            num = part
+            if ':' in part:
+                label, num = part.split(':', 1)
+                label = label.strip()
+                num = num.strip()
+            parsed_number = phonenumbers.parse(num, 'IN')
             if not phonenumbers.is_valid_number(parsed_number):
                 raise DataError({'status': 'error', 'message': 'Invalid Phone Number',
                                  'input_errors': {'phone_number': {'error': True,
-                                                                    'message': f'Invalid Phone Number: {part}'}}})
-            formatted_numbers.append(
-                phonenumbers.format_number(parsed_number, phonenumbers.PhoneNumberFormat.INTERNATIONAL))
+                                                                    'message': f'Invalid Phone Number: {num}'}}})
+            fmt = phonenumbers.format_number(parsed_number, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
+            formatted_numbers.append(f'{label}: {fmt}' if label else fmt)
         return ', '.join(formatted_numbers)
 
     @classmethod
