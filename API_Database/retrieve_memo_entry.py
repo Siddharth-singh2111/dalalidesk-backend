@@ -127,6 +127,7 @@ def get_memo_entry(memo_id: int) -> Dict:
         .select(
             memo_entry_table.star,
             supplier_table.name.as_('supplier_name'),
+            supplier_table.address.as_('supplier_address'),
             party_table.name.as_('party_name'),
             users_table.full_name.as_('created_by_name'),
             users_updated_table.full_name.as_('updated_by_name')
@@ -267,6 +268,7 @@ def get_memo_entry(memo_id: int) -> Dict:
         'supplier_id': memo_data['supplier_id'],
         'party_id': memo_data['party_id'],
         'supplier_name': memo_data['supplier_name'],
+        'supplier_address': memo_data.get('supplier_address'),
         'party_name': memo_data['party_name'],
         'amount': memo_data['amount'],
         'gr_amount': memo_data.get('gr_amount', 0),
