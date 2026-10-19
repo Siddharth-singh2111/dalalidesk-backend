@@ -43,6 +43,8 @@ def get_register_entry_by_id(id: int) -> Dict:
             register_entry_table.status,
             register_entry_table.deduction,
             register_entry_table.gr_amount,
+            register_entry_table.lr_number,
+            register_entry_table.transport_name,
             supplier_table.name.as_('supplier_name'),
             party_table.name.as_('party_name')
         )\
