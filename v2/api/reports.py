@@ -5,15 +5,19 @@ from datetime import datetime
 from typing import Optional
 import traceback
 from flask import Blueprint, request, Response, jsonify, current_app, send_file
+from flask_jwt_extended import jwt_required
 from marshmallow import ValidationError
 
 from ..reports.dalali_memo_report import DalaliMemoReportService
 from ..reports.pending_payment_report import PendingPaymentReportService
+from hca_backend.v1.api.routes import permission_required
 
 reports_bp = Blueprint('reports', __name__, url_prefix='/api/reports')
 
 
 @reports_bp.route('/local-dispatch', methods=['GET'])
+@jwt_required()
+@permission_required('register_entry', 'read')
 def generate_local_dispatch_excel():
     """
     Local Dispatch Summary as an Excel download (flat, one row per dispatched bill).
@@ -118,6 +122,8 @@ def generate_local_dispatch_excel():
 
 
 @reports_bp.route('/commission-summary', methods=['GET'])
+@jwt_required()
+@permission_required('memo_entry', 'read')
 def generate_commission_summary_excel():
     """
     Commission Summary (brokerage payment detail) as an Excel download.
@@ -185,6 +191,8 @@ def generate_commission_summary_excel():
 
 
 @reports_bp.route('/supplier-list', methods=['GET'])
+@jwt_required()
+@permission_required('supplier', 'read')
 def generate_supplier_list_excel():
     """Full supplier directory (name, city, PIN, phone, GSTIN, email, GST %) as Excel."""
     import pandas as pd
@@ -225,6 +233,8 @@ def generate_supplier_list_excel():
 
 
 @reports_bp.route('/party-list', methods=['GET'])
+@jwt_required()
+@permission_required('party', 'read')
 def generate_party_list_excel():
     """Full buyer (party) directory (name, address, phone, GSTIN) as Excel."""
     import pandas as pd
@@ -260,6 +270,8 @@ def generate_party_list_excel():
 
 
 @reports_bp.route('/dalali-memo', methods=['GET'])
+@jwt_required()
+@permission_required('memo_entry', 'read')
 def generate_dalali_memo_report():
     """
     Generate and download Dalali-Memo Excel report.
@@ -349,6 +361,8 @@ def generate_dalali_memo_report():
 
 
 @reports_bp.route('/pending-payment', methods=['GET'])
+@jwt_required()
+@permission_required('register_entry', 'read')
 def generate_pending_payment_report():
     """
     Generate and download Pending Payment Excel report with aging analysis.
