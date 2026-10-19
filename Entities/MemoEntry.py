@@ -299,14 +299,9 @@ class MemoEntry(Entry):
             self.database_partial_payment()
             self.memo_type = 'Part'
         elif self.mode == 'Payment Settlement' or self.mode == 'Settlement':
-            self.mode = 'Payment Settlement'
-            # A payment settlement now settles the selected bills in full, exactly
-            # like a Full memo: bill-linked memo_bills (type 'F') and the bills are
-            # marked paid. That makes it net in the payment list, outstanding and
-            # khata automatically; only the memo_type label marks it as a settlement.
-            # (Previously it stored a bill-less 'ST' record visible only in khata.)
-            self.full_payment()
             self.memo_type = 'Payment Settlement'
+            self.mode = 'Payment Settlement'
+            self.payment_settlement()
         elif self.mode == 'Dalali Settlement':
             self.dalali_settlement()
         
@@ -411,7 +406,7 @@ class MemoEntry(Entry):
         # bill.status reflects the current database state (not the client payload).
         # Returning here happens before generate_memo_bills_and_update_status(), i.e.
         # before the first DB write (bill.update()), so a rejection leaves the DB untouched.
-        if memo.mode in ('Full', 'Payment Settlement', 'Settlement'):
+        if memo.mode == 'Full':
             settled = [bill for bill in memo.selected_bills if bill.status == 'F']
             if settled:
                 bill_numbers = ', '.join(str(bill.bill_number) for bill in settled)
