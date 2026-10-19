@@ -129,6 +129,8 @@ def get_memo_entry(memo_id: int) -> Dict:
             memo_entry_table.star,
             supplier_table.name.as_('supplier_name'),
             supplier_table.address.as_('supplier_address'),
+            supplier_table.city.as_('supplier_city'),
+            supplier_table.pin_code.as_('supplier_pin_code'),
             party_table.name.as_('party_name'),
             users_table.full_name.as_('created_by_name'),
             users_updated_table.full_name.as_('updated_by_name')
@@ -269,7 +271,7 @@ def get_memo_entry(memo_id: int) -> Dict:
         'supplier_id': memo_data['supplier_id'],
         'party_id': memo_data['party_id'],
         'supplier_name': memo_data['supplier_name'],
-        'supplier_address': memo_data.get('supplier_address'),
+        'supplier_address': full_address(memo_data.get('supplier_address'), memo_data.get('supplier_city'), memo_data.get('supplier_pin_code')),
         'party_name': memo_data['party_name'],
         'amount': memo_data['amount'],
         'gr_amount': memo_data.get('gr_amount', 0),
@@ -318,6 +320,21 @@ def get_memo_entry(memo_id: int) -> Dict:
     result['settlements_against'] = get_linked_memos(f"parent_memo_id = {int(memo_id)}")
 
     return result
+
+def full_address(address: Optional[str], city: Optional[str], pin_code) -> Optional[str]:
+    """
+    Supplier address for the memo printout: the street address followed by the
+    city and PIN code, skipping either when the address already contains it.
+    """
+    parts = [str(address).strip()] if address and str(address).strip() else []
+    text = ' '.join(parts).lower()
+    if city and str(city).strip() and str(city).strip().lower() not in text:
+        parts.append(str(city).strip())
+    line = ', '.join(parts)
+    pin = str(pin_code).strip() if pin_code is not None else ''
+    if pin and pin not in line:
+        line = f"{line} - {pin}" if line else pin
+    return line or None
 
 def get_linked_memos(where_clause: str) -> List[Dict]:
     """
