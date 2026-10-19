@@ -48,10 +48,21 @@ class Individual:
         gst_default = kwargs.get('gst_default', None)
         self.gst_default = gst_default
         self.gstin = None
-        if table_name in ('supplier', 'party') and 'gstin' in kwargs:
+        if table_name in ('supplier', 'party', 'firm') and 'gstin' in kwargs:
             raw = kwargs.get('gstin')
             if raw is not None and str(raw).strip():
                 self.gstin = re.sub(r'\s+', '', str(raw).strip()).upper()
+        # Optional PAN (firm / supplier / party), e.g. ABCDE1234F. Like GSTIN, the
+        # edit forms omit it when blank, so an update without it clears it.
+        self.pan = None
+        if table_name in ('supplier', 'party', 'firm') and 'pan' in kwargs:
+            raw = kwargs.get('pan')
+            if raw is not None and str(raw).strip():
+                pan = re.sub(r'\s+', '', str(raw).strip()).upper()
+                if not re.fullmatch(r'[A-Z]{5}[0-9]{4}[A-Z]', pan):
+                    raise DataError({'status': 'error', 'message': 'Invalid PAN (expected format ABCDE1234F)',
+                                     'input_errors': {'pan': {'status': 'error', 'message': 'Invalid PAN (expected format ABCDE1234F)'}}})
+                self.pan = pan
         # Optional supplier contact fields (empty -> None).
         self.email = (str(kwargs.get('email')).strip() or None) if kwargs.get('email') is not None else None
         self.pin_code = (str(kwargs.get('pin_code')).strip() or None) if kwargs.get('pin_code') is not None else None
@@ -101,11 +112,12 @@ class Individual:
             update_fields.append(f"city='{self.city}'")
         if self.gst_default is not None:
             update_fields.append(f"gst_default={self.gst_default}")
-        if self.table_name in ('supplier', 'party'):
+        if self.table_name in ('supplier', 'party', 'firm'):
             if self.gstin:
                 update_fields.append(f"gstin='{_strip_quotes(self.gstin)}'")
             else:
                 update_fields.append("gstin=NULL")
+            update_fields.append(f"pan='{_strip_quotes(self.pan)}'" if self.pan else "pan=NULL")
         if self.table_name == 'supplier':
             update_fields.append(f"email='{_strip_quotes(self.email)}'" if self.email else "email=NULL")
             update_fields.append(f"pin_code='{_strip_quotes(self.pin_code)}'" if self.pin_code else "pin_code=NULL")
@@ -268,9 +280,13 @@ class Individual:
             columns.append('gst_default')
             values.append(f"{entity.gst_default}")
 
-        if entity.table_name in ('supplier', 'party') and getattr(entity, 'gstin', None):
+        if entity.table_name in ('supplier', 'party', 'firm') and getattr(entity, 'gstin', None):
             columns.append('gstin')
             values.append(f"'{remove_single_quotes(entity.gstin)}'")
+
+        if entity.table_name in ('supplier', 'party', 'firm') and getattr(entity, 'pan', None):
+            columns.append('pan')
+            values.append(f"'{remove_single_quotes(entity.pan)}'")
 
         if entity.table_name == 'supplier' and getattr(entity, 'email', None):
             columns.append('email')
