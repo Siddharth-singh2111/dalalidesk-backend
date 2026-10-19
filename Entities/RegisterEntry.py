@@ -108,7 +108,12 @@ class RegisterEntry(Entry):
         """Creates a RegisterEntry instance from a dictionary, converting necessary fields to integers."""
         int_attributes = ['bill_number', 'amount', 'supplier_id', 'party_id', 'gr_amount', 'deduction', 'partial_amount', 'scheme_source_bill_id']
         data = cls.convert_int_attributes(data, int_attributes)
-        return cls(**data)
+        entry = cls(**data)
+        # L.R. No. / transport are only written back on update when they were
+        # actually loaded or sent; entries built without them (older callers)
+        # must not wipe what is stored.
+        entry.dispatch_fields_loaded = 'lr_number' in data or 'transport_name' in data
+        return entry
 
     @classmethod
     def retrieve(cls, supplier_id: int, party_id: int, bill_number: Union[List[Dict], int, str], register_date: Union[str, datetime]=None) -> Union[RegisterEntry, List[RegisterEntry]]:

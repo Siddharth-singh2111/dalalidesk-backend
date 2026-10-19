@@ -8,6 +8,7 @@ from ..models.dalali import (
     DalaliSenderPayments, DalaliReceiverPayments, TdsDetails
 )
 from ..models.memo import MemoEntry
+from ..models.supplier_and_party import Supplier
 from ..extensions import db
 
 class DalaliService:
@@ -276,7 +277,9 @@ class DalaliService:
         from_date: Optional[datetime] = None,
         to_date: Optional[datetime] = None,
         page: int = 1,
-        per_page: int = 20
+        per_page: int = 20,
+        supplier_ids: Optional[List[int]] = None,
+        search: Optional[str] = None,
     ) -> Tuple[List[DalaliEntry], int]:
         """
         List dalali entries with optional filters
@@ -285,8 +288,19 @@ class DalaliService:
         query = DalaliEntry.query
         
         # Apply filters
+        supplier_ids = list(supplier_ids or [])
         if supplier_id:
-            query = query.filter(DalaliEntry.supplier_id == supplier_id)
+            supplier_ids.append(supplier_id)
+        if supplier_ids:
+            query = query.filter(DalaliEntry.supplier_id.in_(supplier_ids))
+        if search and search.strip():
+            # Search every dalali entry (not just the visible page): supplier name
+            # or the dalali number.
+            term = search.strip()
+            criterion = DalaliEntry.supplier.has(Supplier.name.ilike(f"%{term}%"))
+            if term.isdigit():
+                criterion = criterion | (DalaliEntry.dalali_number == int(term))
+            query = query.filter(criterion)
         if status:
             query = query.filter(DalaliEntry.status == status)
         if from_date:

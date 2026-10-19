@@ -87,6 +87,8 @@ def list_dalali():
     to_date = request.args.get("to_date")
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
+    supplier_ids = [int(x) for x in (request.args.get("supplier_ids") or "").split(",") if x.strip().isdigit()]
+    search = request.args.get("search")
     
     # Get entries from service
     entries, total = DalaliService.list_dalali_entries(
@@ -95,7 +97,9 @@ def list_dalali():
         from_date=from_date,
         to_date=to_date,
         page=page,
-        per_page=per_page
+        per_page=per_page,
+        supplier_ids=supplier_ids,
+        search=search,
     )
     
     # Convert to schema

@@ -855,7 +855,8 @@ def memo_summary(supplier_ids: List[int], party_ids: List[int],
                  supplier_all: bool = False, party_all: bool = False) -> Dict:
     """
     Memos created within the date range, listed with supplier/party/amount/
-    commission, plus the total memo count and totals. Answers "how many memos
+    commission — Surat memos and out-station memos in separate sections with
+    their own count and totals — plus a grand total. Answers "how many memos
     were created". The range filters on the memo date (register_date).
     """
     start = sql_date(parse_date(start_date))
@@ -876,30 +877,56 @@ def memo_summary(supplier_ids: List[int], party_ids: List[int],
     rows = execute_query(query)['result']
 
     data = _base('Memo Summary', start, end)
-    data_rows = []
-    total_amt = 0
-    total_comm = 0
-    for row in rows:
-        amt = int(row['memo_amt'] or 0)
-        comm = int(row['commission'] or 0)
-        total_amt += amt
-        total_comm += comm
-        data_rows.append({
-            'memo_no': _memo_no(row),
-            'memo_date': _fmt_date(row['register_date']),
-            'supplier': row['supplier_name'] or '-',
-            'party': row['party_name'] or '-',
-            'amount': _fmt(amt),
-            'commission': _fmt(comm),
+    # Surat memos and out-station (OS-) memos are listed separately, each with
+    # its own count and totals, followed by a grand total of both.
+    sections = [('Surat Memos', [r for r in rows if not r.get('is_out_station')]),
+                ('Out-station Memos', [r for r in rows if r.get('is_out_station')])]
+    subheadings = []
+    grand_count = grand_amt = grand_comm = 0
+    for title, section_rows in sections:
+        if not section_rows:
+            continue
+        data_rows = []
+        total_amt = total_comm = 0
+        for row in section_rows:
+            amt = int(row['memo_amt'] or 0)
+            comm = int(row['commission'] or 0)
+            total_amt += amt
+            total_comm += comm
+            data_rows.append({
+                'memo_no': _memo_no(row),
+                'memo_date': _fmt_date(row['register_date']),
+                'supplier': row['supplier_name'] or '-',
+                'party': row['party_name'] or '-',
+                'amount': _fmt(amt),
+                'commission': _fmt(comm),
+            })
+        subheadings.append({
+            'title': f'{title} ({len(data_rows)})',
+            'dataRows': data_rows,
+            'specialRows': [_total_row('Total (=) ', total_amt, 'amount'),
+                            _total_row('Total (=) ', total_comm, 'commission')],
+            'displayOnIndex': False,
+            # A plain section, not a supplier: the PDF prints no "SUPPLIER:" label.
+            'plainTitle': True,
         })
-    if data_rows:
-        special = [_total_row('Total (=) ', total_amt, 'amount'),
-                   _total_row('Total (=) ', total_comm, 'commission')]
+        grand_count += len(data_rows)
+        grand_amt += total_amt
+        grand_comm += total_comm
+    if subheadings:
         data['headings'].append({
             'title': 'Memo Summary',
-            'subheadings': [{'title': '', 'dataRows': data_rows,
-                             'specialRows': special, 'displayOnIndex': False}],
-            'cumulative': {'name': 'Memos Created', 'value': str(len(data_rows))},
+            'subheadings': subheadings,
+            'cumulative': {'name': 'Memos Created', 'value': str(grand_count)},
+        })
+        data['headings'].append({
+            'title': 'Grand Total',
+            'subheadings': [{
+                'title': '',
+                'dataRows': [{'memos': grand_count, 'amount': _fmt(grand_amt), 'commission': _fmt(grand_comm)}],
+                'specialRows': [],
+                'displayOnIndex': False,
+            }],
         })
     return data
 
