@@ -1150,6 +1150,12 @@ def search():
             return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+def _id_list_arg(name: str):
+    """Comma-separated integers from a query-string argument ('3,7,12' -> [3, 7, 12])."""
+    raw = request.args.get(name) or ''
+    return [int(x) for x in raw.split(',') if x.strip().isdigit()]
+
+
 @v1_bp.route('/v2/get_all_register_entries', methods=['GET'])
 @jwt_required()
 @permission_required('register_entry', 'read')
@@ -1172,6 +1178,9 @@ def get_all_register_entries_with_names():
             filters['end_date'] = request.args.get('end_date')
         if request.args.get('register_number'):
             filters['register_number'] = int(request.args.get('register_number'))
+        for list_arg in ('supplier_ids', 'party_ids', 'register_numbers'):
+            if _id_list_arg(list_arg):
+                filters[list_arg] = _id_list_arg(list_arg)
         if request.args.get('search'):
             filters['search'] = request.args.get('search').strip()
 
@@ -1213,7 +1222,12 @@ def get_all_memo_entries_with_names():
             filters['end_date'] = request.args.get('end_date')
         if request.args.get('memo_number'):
             filters['memo_number'] = int(request.args.get('memo_number'))
-        
+        for list_arg in ('supplier_ids', 'party_ids', 'memo_numbers'):
+            if _id_list_arg(list_arg):
+                filters[list_arg] = _id_list_arg(list_arg)
+        if request.args.get('search'):
+            filters['search'] = request.args.get('search').strip()
+
         # Only pass filters if they exist
         kwargs = {}
         if page is not None and page_size is not None:

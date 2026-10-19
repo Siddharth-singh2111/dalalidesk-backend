@@ -168,12 +168,21 @@ class MemoEntry(Entry):
         Delete the memo entry from the database
         """
         memo_id = self.get_id()
-        for memo_bill in self.memo_bills:
-            ret = memo_bill.delete(memo_id, self.supplier_id, self.party_id)
-        ret = delete_memo_payments(memo_id)
-        for part_memo_id in self.part_payment:
-            ret = update_part_payment(self.supplier_id, self.party_id, memo_id=part_memo_id, used=False)
-        ret = super().delete()
+        # Same rule as the v2 delete: block, before anything changes, a memo that
+        # a dalali bill or a Payment Settlement still points to.
+        from hca_backend.v2.services.memo import MemoService
+        can_delete, reason = MemoService.can_delete_memo(memo_id)
+        if not can_delete:
+            return {'status': 'error', 'message': reason}
+        # All-or-nothing: if any step fails, the bill resets are rolled back too,
+        # so a memo can never be left half-deleted with its bills marked unpaid.
+        with transaction():
+            for memo_bill in self.memo_bills:
+                ret = memo_bill.delete(memo_id, self.supplier_id, self.party_id)
+            ret = delete_memo_payments(memo_id)
+            for part_memo_id in self.part_payment:
+                ret = update_part_payment(self.supplier_id, self.party_id, memo_id=part_memo_id, used=False)
+            ret = super().delete()
         return ret
 
     @staticmethod

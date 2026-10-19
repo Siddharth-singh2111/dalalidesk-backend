@@ -11,6 +11,7 @@ from API_Database.retrieve_partial_payment import get_partial_payment_bulk
 from pypika import Query, Table, Field, functions as fn, Order, Case
 import sys
 import math
+import re
 sys.path.append('../')
 
 def check_new_memo(memo_number: int, date: datetime, is_out_station: bool = False, *args, **kwargs) -> bool:
@@ -305,8 +306,42 @@ def get_memo_entry(memo_id: int) -> Dict:
     if part_payments:
         result['selected_part'] = part_payments
         result['part_details'] = part_details
-    
+
+    # A Payment Settlement may name the earlier memo it was made against
+    # (optional). Return that memo's number/date/amount so the UI can show
+    # "Against Memo #X", and, for any memo, the settlements recorded against it.
+    parent_memo = None
+    if memo_data.get('parent_memo_id'):
+        linked = get_linked_memos(f"id = {int(memo_data['parent_memo_id'])}")
+        parent_memo = linked[0] if linked else None
+    result['parent_memo'] = parent_memo
+    result['settlements_against'] = get_linked_memos(f"parent_memo_id = {int(memo_id)}")
+
     return result
+
+def get_linked_memos(where_clause: str) -> List[Dict]:
+    """
+    Short summaries (id, display number with the OS- prefix for out-station
+    memos, date, amount, type) of the memos matching where_clause, oldest first.
+    """
+    query = f"""
+        SELECT id, memo_number, is_out_station, register_date, amount, memo_type
+        FROM memo_entry
+        WHERE {where_clause}
+        ORDER BY register_date, id
+    """
+    rows = execute_query(query)['result']
+    return [
+        {
+            'id': row['id'],
+            'memo_number': row['memo_number'],
+            'display_number': ('OS-' + str(row['memo_number'])) if row.get('is_out_station') else str(row['memo_number']),
+            'register_date': sql_date(row['register_date']),
+            'amount': row['amount'],
+            'memo_type': row['memo_type'],
+        }
+        for row in rows
+    ]
 
 def get_all_memo_entries(**kwargs):
     """
@@ -462,35 +497,57 @@ def get_all_memo_entries_with_names(page=None, page_size=None, filters=None) -> 
             .select(*select_cols)\
             .groupby(*group_by_cols)
         
-        # Apply filters if provided
-        if filters:
-            if 'supplier_id' in filters and filters['supplier_id']:
-                query = query.where(memo_entry_table.supplier_id == filters['supplier_id'])
-            if 'party_id' in filters and filters['party_id']:
-                query = query.where(memo_entry_table.party_id == filters['party_id'])
-            if 'start_date' in filters and filters['start_date']:
-                query = query.where(memo_entry_table.register_date >= filters['start_date'])
-            if 'end_date' in filters and filters['end_date']:
-                query = query.where(memo_entry_table.register_date <= filters['end_date'])
-            if 'memo_number' in filters and filters['memo_number']:
-                query = query.where(memo_entry_table.memo_number == filters['memo_number'])
-        
-        # Get total count for pagination (remains simple, based on memo_entry only before join/grouping)
-        count_query = Query.from_(memo_entry_table).select(fn.Count('*').as_('total'))
-        
-        # Apply the same filters to count query
-        if filters:
-            if 'supplier_id' in filters and filters['supplier_id']:
-                count_query = count_query.where(memo_entry_table.supplier_id == filters['supplier_id'])
-            if 'party_id' in filters and filters['party_id']:
-                count_query = count_query.where(memo_entry_table.party_id == filters['party_id'])
-            if 'start_date' in filters and filters['start_date']:
-                count_query = count_query.where(memo_entry_table.register_date >= filters['start_date'])
-            if 'end_date' in filters and filters['end_date']:
-                count_query = count_query.where(memo_entry_table.register_date <= filters['end_date'])
-            if 'memo_number' in filters and filters['memo_number']:
-                count_query = count_query.where(memo_entry_table.memo_number == filters['memo_number'])
-        
+        # One filter function for both the page query and the count query, so the
+        # total always matches what the filters/search actually select.
+        def apply_filters(q):
+            if not filters:
+                return q
+            supplier_ids = list(filters.get('supplier_ids') or [])
+            if filters.get('supplier_id'):
+                supplier_ids.append(filters['supplier_id'])
+            if supplier_ids:
+                q = q.where(memo_entry_table.supplier_id.isin(supplier_ids))
+            party_ids = list(filters.get('party_ids') or [])
+            if filters.get('party_id'):
+                party_ids.append(filters['party_id'])
+            if party_ids:
+                q = q.where(memo_entry_table.party_id.isin(party_ids))
+            memo_numbers = list(filters.get('memo_numbers') or [])
+            if filters.get('memo_number'):
+                memo_numbers.append(filters['memo_number'])
+            if memo_numbers:
+                q = q.where(memo_entry_table.memo_number.isin(memo_numbers))
+            if filters.get('start_date'):
+                q = q.where(memo_entry_table.register_date >= filters['start_date'])
+            if filters.get('end_date'):
+                q = q.where(memo_entry_table.register_date <= filters['end_date'])
+            if filters.get('search'):
+                # Search every memo (not just the visible page): supplier, party or
+                # owner name, or the memo number ("12" or "OS-12").
+                term = str(filters['search']).strip()
+                criterion = (supplier_table.name.ilike(f'%{term}%')
+                             | party_table.name.ilike(f'%{term}%')
+                             | users_table.full_name.ilike(f'%{term}%'))
+                number = re.fullmatch(r'(?i)(os-?)?\s*(\d+)', term)
+                if number:
+                    by_number = memo_entry_table.memo_number == int(number.group(2))
+                    if number.group(1):
+                        by_number = by_number & (memo_entry_table.is_out_station == True)
+                    criterion = criterion | by_number
+                q = q.where(criterion)
+            return q
+
+        query = apply_filters(query)
+
+        # Count query joins supplier/party/owner so the search can reference their
+        # names; left joins keep the row count identical to memo_entry alone.
+        count_query = Query.from_(memo_entry_table)\
+            .left_join(supplier_table).on(memo_entry_table.supplier_id == supplier_table.id)\
+            .left_join(party_table).on(memo_entry_table.party_id == party_table.id)\
+            .left_join(users_table).on(memo_entry_table.created_by == users_table.id)\
+            .select(fn.Count('*').as_('total'))
+        count_query = apply_filters(count_query)
+
         count_result = execute_query(count_query.get_sql())
         total_count = count_result['result'][0]['total'] if count_result['status'] == 'okay' else 0
         
@@ -510,7 +567,16 @@ def get_all_memo_entries_with_names(page=None, page_size=None, filters=None) -> 
             return {'status': 'error', 'message': 'Failed to fetch memo entries'}
             
         memo_entries = result['result']
-        
+
+        # Payment Settlements made against an earlier memo show that memo's
+        # number (with the OS- prefix where it applies) in the list.
+        parent_ids = sorted({int(m['parent_memo_id']) for m in memo_entries if m.get('parent_memo_id')})
+        if parent_ids:
+            linked = get_linked_memos(f"id IN ({','.join(map(str, parent_ids))})")
+            numbers = {m['id']: m['display_number'] for m in linked}
+            for m in memo_entries:
+                m['parent_memo_display'] = numbers.get(m.get('parent_memo_id'))
+
 
         return {
             'status': 'okay', 

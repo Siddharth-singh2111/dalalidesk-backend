@@ -19,8 +19,20 @@ class MemoService:
             return False, "Memo not found"
         
         if memo.dalali_bills:
-            return False, "Memo has associated dalali bills"
-                
+            numbers = sorted({b.dalali_entry.dalali_number for b in memo.dalali_bills if b.dalali_entry})
+            listed = ", ".join(f"#{n}" for n in numbers) or "a dalali bill"
+            return False, f"This memo is in dalali bill {listed}. Remove it from the dalali bill first."
+
+        # A Payment Settlement may point at this memo as the one it was made
+        # against; deleting this memo would leave that link dangling, so block it
+        # with a clear reason (the database would refuse it anyway).
+        if memo.child_memos:
+            listed = ", ".join(
+                f"#{'OS-' if m.is_out_station else ''}{m.memo_number}" for m in memo.child_memos
+            )
+            return False, (f"Payment Settlement memo {listed} was made against this memo. "
+                           f"Delete that settlement first.")
+
         return True, ""
     
     @staticmethod

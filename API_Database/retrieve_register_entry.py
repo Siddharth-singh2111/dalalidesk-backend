@@ -428,19 +428,30 @@ def get_all_register_entries_with_names(page=None, page_size=None, filters=None)
         def apply_filters(q):
             if not filters:
                 return q
-            if 'supplier_id' in filters and filters['supplier_id']:
-                q = q.where(register_entry_table.supplier_id == filters['supplier_id'])
-            if 'party_id' in filters and filters['party_id']:
-                q = q.where(register_entry_table.party_id == filters['party_id'])
+            supplier_ids = list(filters.get('supplier_ids') or [])
+            if filters.get('supplier_id'):
+                supplier_ids.append(filters['supplier_id'])
+            if supplier_ids:
+                q = q.where(register_entry_table.supplier_id.isin(supplier_ids))
+            party_ids = list(filters.get('party_ids') or [])
+            if filters.get('party_id'):
+                party_ids.append(filters['party_id'])
+            if party_ids:
+                q = q.where(register_entry_table.party_id.isin(party_ids))
             if 'start_date' in filters and filters['start_date']:
                 q = q.where(register_entry_table.register_date >= filters['start_date'])
             if 'end_date' in filters and filters['end_date']:
                 q = q.where(register_entry_table.register_date <= filters['end_date'])
-            if 'register_number' in filters and filters['register_number']:
-                q = q.where(register_entry_table.bill_number == filters['register_number'])
+            bill_numbers = list(filters.get('register_numbers') or [])
+            if filters.get('register_number'):
+                bill_numbers.append(filters['register_number'])
+            if bill_numbers:
+                q = q.where(register_entry_table.bill_number.isin(bill_numbers))
             if 'search' in filters and filters['search']:
                 term = str(filters['search']).strip()
-                criterion = supplier_table.name.ilike(f'%{term}%') | party_table.name.ilike(f'%{term}%')
+                criterion = (supplier_table.name.ilike(f'%{term}%')
+                             | party_table.name.ilike(f'%{term}%')
+                             | users_table.full_name.ilike(f'%{term}%'))
                 if term.isdigit():
                     criterion = criterion | (register_entry_table.bill_number == int(term))
                 q = q.where(criterion)
@@ -448,11 +459,12 @@ def get_all_register_entries_with_names(page=None, page_size=None, filters=None)
 
         query = apply_filters(query)
 
-        # Count query joins supplier/party so the search filter can reference their names;
+        # Count query joins supplier/party/owner so the search filter can reference their names;
         # left joins keep the row count identical to the unjoined table.
         count_query = Query.from_(register_entry_table)\
             .left_join(supplier_table).on(register_entry_table.supplier_id == supplier_table.id)\
             .left_join(party_table).on(register_entry_table.party_id == party_table.id)\
+            .left_join(users_table).on(register_entry_table.created_by == users_table.id)\
             .select(fn.Count('*').as_('total'))
         count_query = apply_filters(count_query)
         
