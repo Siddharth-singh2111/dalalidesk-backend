@@ -2,6 +2,7 @@
 API endpoints for dashboard metrics
 """
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required
 from sqlalchemy import func, extract, not_, exists
 from ..models.register import RegisterEntry
 from ..models.memo import MemoEntry
@@ -10,11 +11,14 @@ from ..models.supplier_and_party import Supplier
 from ..extensions import db
 from datetime import datetime
 from typing import List, Optional, Dict, Any, Union
+from hca_backend.v1.api.routes import permission_required
 
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/api/dashboard')
 
 
 @dashboard_bp.route('/sales-comparison', methods=['GET'])
+@jwt_required()
+@permission_required('register_entry', 'read')
 def get_sales_comparison():
     """
     Get sales comparison data between current and previous year with optional filtering.
@@ -164,6 +168,8 @@ def get_sales_comparison():
 
 
 @dashboard_bp.route('/metrics', methods=['GET'])
+@jwt_required()
+@permission_required('register_entry', 'read')
 def get_dashboard_metrics():
     """
     Get dashboard metrics with optional filtering by suppliers, parties, financial year, and city.
