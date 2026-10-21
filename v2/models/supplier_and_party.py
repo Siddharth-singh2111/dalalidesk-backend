@@ -49,6 +49,11 @@ class Supplier(db.Model):
     gst_default: Mapped[Optional[float]] = MappedColumn(db.Numeric, default=5.0, nullable=True)
     # Optional default firm — pre-fills the dalali receiver firm for this supplier.
     default_firm_id: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("firm.id"), nullable=True)
+    # Existing columns (added by SQL migrations) the dalali tax invoice prints.
+    gstin: Mapped[Optional[str]] = MappedColumn(db.String(20), nullable=True)
+    pan: Mapped[Optional[str]] = MappedColumn(db.String(10), nullable=True)
+    email: Mapped[Optional[str]] = MappedColumn(db.String(120), nullable=True)
+    pin_code: Mapped[Optional[str]] = MappedColumn(db.String(10), nullable=True)
     last_update: Mapped[datetime] = MappedColumn(db.TIMESTAMP, server_default=db.func.current_timestamp(), nullable=False)
     created_at: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)
     created_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)

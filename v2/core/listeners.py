@@ -4,6 +4,17 @@ from ..extensions import db
 from ..models.audit import AuditLog
 from ..core.context import get_current_user_id
 import datetime
+import decimal
+
+
+def _json_safe(val):
+    """Audit rows are JSON: dates as ISO text, Decimal money as a number."""
+    # datetime is a subclass of date, so one check covers both.
+    if isinstance(val, (datetime.datetime, datetime.date)):
+        return val.isoformat()
+    if isinstance(val, decimal.Decimal):
+        return float(val)
+    return val
 
 
 def audit_before_flush(session: Session, flush_context, instances):
@@ -44,12 +55,7 @@ def audit_after_flush(session: Session, flush_context):
     for obj in getattr(session, '_objects_to_audit_new', []):
         changes = {}
         for c in obj.__table__.columns:
-            val = getattr(obj, c.name)
-            # datetime is a subclass of date, so check it first.
-            if isinstance(val, (datetime.datetime, datetime.date)):
-                changes[c.name] = val.isoformat()
-            else:
-                changes[c.name] = val
+            changes[c.name] = _json_safe(getattr(obj, c.name))
         session.add(AuditLog(
             user_id    = user,
             table_name = obj.__tablename__,
@@ -62,11 +68,7 @@ def audit_after_flush(session: Session, flush_context):
     for obj, diffs in getattr(session, '_objects_to_audit_dirty', []):
         serialized_diffs = {}
         for key, value in diffs.items():
-            # datetime is a subclass of date, so check it first.
-            if isinstance(value, (datetime.datetime, datetime.date)):
-                serialized_diffs[key] = value.isoformat()
-            else:
-                serialized_diffs[key] = value
+            serialized_diffs[key] = _json_safe(value)
         session.add(AuditLog(
             user_id    = user,
             table_name = obj.__tablename__,

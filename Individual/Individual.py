@@ -118,6 +118,8 @@ class Individual:
             else:
                 update_fields.append("gstin=NULL")
             update_fields.append(f"pan='{_strip_quotes(self.pan)}'" if self.pan else "pan=NULL")
+        if self.table_name == 'firm':
+            update_fields.append(f"email='{_strip_quotes(self.email)}'" if self.email else "email=NULL")
         if self.table_name == 'supplier':
             update_fields.append(f"email='{_strip_quotes(self.email)}'" if self.email else "email=NULL")
             update_fields.append(f"pin_code='{_strip_quotes(self.pin_code)}'" if self.pin_code else "pin_code=NULL")
@@ -288,7 +290,7 @@ class Individual:
             columns.append('pan')
             values.append(f"'{remove_single_quotes(entity.pan)}'")
 
-        if entity.table_name == 'supplier' and getattr(entity, 'email', None):
+        if entity.table_name in ('supplier', 'firm') and getattr(entity, 'email', None):
             columns.append('email')
             values.append(f"'{remove_single_quotes(entity.email)}'")
 
