@@ -17,9 +17,18 @@ class FirmBank(Individual):
     """
     table_name = 'firm_bank'
 
+    # Bank details printed on the dalali tax invoice (all optional).
+    detail_fields = ('account_number', 'account_type', 'ifsc', 'branch')
+
     def __init__(self, name: str, address: str, firm_id: int, *args, **kwargs) -> None:
         """Initializes a FirmBank instance by invoking the parent initializer with a preset table name."""
         self.firm_id = firm_id
+        for field in self.detail_fields:
+            raw = kwargs.get(field)
+            value = str(raw).strip() if raw is not None else ''
+            if field == 'ifsc':
+                value = value.upper().replace(' ', '')
+            setattr(self, field, value or None)
         super().__init__(name, address, table_name=self.table_name, **kwargs)
 
     def update(self, current_user_id: Optional[int] = None) -> Dict:
@@ -29,9 +38,14 @@ class FirmBank(Individual):
         from psql import execute_query
         
         entity_id = self.get_id()
-        update_fields = [f"name='{self.name}'", f"address='{self.address}'", f"firm_id={self.firm_id}"]
-        if self.phone_number:
-            update_fields.append(f"phone_number='{self.phone_number}'")
+        def _q(value):
+            return str(value).replace("'", '')
+
+        update_fields = [f"name='{_q(self.name)}'", f"address='{_q(self.address)}'", f"firm_id={int(self.firm_id)}"]
+        update_fields.append(f"phone_number='{self.phone_number}'" if self.phone_number else "phone_number=NULL")
+        for field in self.detail_fields:
+            value = getattr(self, field)
+            update_fields.append(f"{field}='{_q(value)}'" if value else f"{field}=NULL")
             
         # Add audit fields
         if current_user_id is not None:
@@ -67,6 +81,12 @@ class FirmBank(Individual):
         if entity.phone_number is not None:
             columns.append('phone_number')
             values.append(f"'{entity.phone_number}'")
+
+        for field in cls.detail_fields:
+            value = getattr(entity, field)
+            if value:
+                columns.append(field)
+                values.append(f"'{remove_single_quotes(value)}'")
             
         # Add audit fields
         if current_user_id is not None:

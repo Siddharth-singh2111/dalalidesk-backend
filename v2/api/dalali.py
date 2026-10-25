@@ -18,6 +18,35 @@ import json
 
 dalali_bp = Blueprint("dalali", __name__, url_prefix="/api/dalali")
 
+# Same people the screens let approve (hooks/useAuth.ts canApproveDalali):
+# admins, anyone with Edit on dalali entries, and the named approvers.
+_LEGACY_APPROVERS = {"raghav", "hema", "vaibhav", "dhruv", "rajesh", "priyanka"}
+
+
+def _can_approve() -> bool:
+    try:
+        from hca_backend.Individual import User
+        username = get_jwt_identity()
+        user = User.get_by_username(username) if username else None
+    except Exception:
+        return False
+    if not user or not getattr(user, "is_active", True):
+        return False
+    return (user.role == "admin" or user.username in _LEGACY_APPROVERS
+            or user.has_permission("dalali_entry", "update"))
+
+
+def _entry_json(entry):
+    schema = DalaliEntrySchema.model_validate(entry)
+    if entry.notes:
+        try:
+            schema.notes = json.loads(entry.notes)
+        except Exception:
+            schema.notes = []
+    schema.less_details = entry.less_details
+    schema.approval_problem = DalaliService.approval_problem(entry) if entry.status != "Approved" else None
+    return schema.model_dump()
+
 @dalali_bp.route("/<int:dalali_id>", methods=["DELETE"])
 @jwt_required()
 def delete_dalali(dalali_id):
@@ -60,20 +89,7 @@ def get_dalali(dalali_id):
     if not entry:
         abort(404, description="Dalali entry not found")
     
-    # Convert SQLAlchemy object to Pydantic model
-    schema = DalaliEntrySchema.model_validate(entry)
-    
-    # Process JSON fields
-    if entry.notes:
-        try:
-            schema.notes = json.loads(entry.notes)
-        except:
-            schema.notes = []
-    
-    # Use the hybrid property for less_details
-    schema.less_details = entry.less_details
-    
-    return jsonify(schema.model_dump())
+    return jsonify(_entry_json(entry))
 
 @dalali_bp.route("/", methods=["GET"])
 @jwt_required()
@@ -103,21 +119,7 @@ def list_dalali():
     )
     
     # Convert to schema
-    result = []
-    for entry in entries:
-        schema = DalaliEntrySchema.model_validate(entry)
-        
-        # Process JSON fields
-        if entry.notes:
-            try:
-                schema.notes = json.loads(entry.notes)
-            except:
-                schema.notes = []
-        
-        # Use the hybrid property for less_details
-        schema.less_details = entry.less_details
-        
-        result.append(schema.model_dump())
+    result = [_entry_json(entry) for entry in entries]
     
     return jsonify({
         "items": result,
@@ -285,3 +287,49 @@ def get_all_dalali_entries_with_names():
             "status": "error",
             "message": str(e)
         }), 500
+
+
+@dalali_bp.route("/invoice-defaults", methods=["GET"])
+@jwt_required()
+def invoice_defaults():
+    """Place of supply, the firm's banks and the next invoice number, for the entry screen."""
+    return jsonify(DalaliService.invoice_defaults(
+        supplier_id=request.args.get("supplier_id", type=int),
+        firm_id=request.args.get("firm_id", type=int),
+        bill_date=request.args.get("bill_date") or None,
+        exclude_id=request.args.get("exclude_id", type=int),
+    ))
+
+
+@dalali_bp.route("/<int:dalali_id>/approve", methods=["POST"])
+@jwt_required()
+def approve_dalali(dalali_id):
+    if not _can_approve():
+        return jsonify({"error": "You can't approve dalali entries"}), 403
+    ok, message = DalaliService.set_status(dalali_id, "Approved", get_current_user_id())
+    return jsonify({"message": message} if ok else {"error": message}), (200 if ok else 400)
+
+
+@dalali_bp.route("/<int:dalali_id>/unapprove", methods=["POST"])
+@jwt_required()
+def unapprove_dalali(dalali_id):
+    if not _can_approve():
+        return jsonify({"error": "You can't change approvals"}), 403
+    ok, message = DalaliService.set_status(dalali_id, "Pending", get_current_user_id())
+    return jsonify({"message": message} if ok else {"error": message}), (200 if ok else 400)
+
+
+@dalali_bp.route("/bulk-approve", methods=["POST"])
+@jwt_required()
+def bulk_approve_dalali():
+    if not _can_approve():
+        return jsonify({"error": "You can't approve dalali entries"}), 403
+    ids = [int(i) for i in (request.json or {}).get("ids", []) if str(i).isdigit()]
+    if not ids:
+        return jsonify({"error": "No entries selected"}), 400
+    results = DalaliService.bulk_approve(ids, get_current_user_id())
+    return jsonify({
+        "results": results,
+        "approved": sum(1 for r in results if r["result"] == "approved"),
+        "skipped": sum(1 for r in results if r["result"] == "skipped"),
+    })

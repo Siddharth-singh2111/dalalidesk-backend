@@ -1,7 +1,8 @@
 from ..extensions import db
 from sqlalchemy.orm import MappedColumn, Mapped, relationship
 from sqlalchemy.ext.hybrid import hybrid_property
-from datetime import datetime
+from datetime import datetime, date
+from decimal import Decimal
 from typing import Optional, List, Dict, Any
 import json
 from .supplier_and_party import Supplier
@@ -46,6 +47,21 @@ class DalaliEntry(db.Model):
     status: Mapped[str] = MappedColumn(db.String(10), nullable=False)
     reference_page_number: Mapped[Optional[int]] = MappedColumn(db.Integer, nullable=True)
     tally_bill_no: Mapped[Optional[str]] = MappedColumn(db.String(50), nullable=True)
+    # Tax invoice (migrations/2026_10_dalali_gst_invoice.sql). The GST block is
+    # worked out by the server on save and kept as issued.
+    billing_firm_id: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("firm.id"), nullable=True)
+    billing_firm_bank_id: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("firm_bank.id"), nullable=True)
+    bill_date: Mapped[Optional[date]] = MappedColumn(db.Date, nullable=True)
+    invoice_number: Mapped[Optional[str]] = MappedColumn(db.String(30), nullable=True)
+    gst_rate: Mapped[Optional[Decimal]] = MappedColumn(db.Numeric(5, 2), nullable=True)
+    place_of_supply: Mapped[Optional[str]] = MappedColumn(db.String(2), nullable=True)
+    taxable_amount: Mapped[Optional[Decimal]] = MappedColumn(db.Numeric(14, 2), nullable=True)
+    cgst_amount: Mapped[Optional[Decimal]] = MappedColumn(db.Numeric(14, 2), nullable=True)
+    sgst_amount: Mapped[Optional[Decimal]] = MappedColumn(db.Numeric(14, 2), nullable=True)
+    igst_amount: Mapped[Optional[Decimal]] = MappedColumn(db.Numeric(14, 2), nullable=True)
+    round_off: Mapped[Optional[Decimal]] = MappedColumn(db.Numeric(8, 2), nullable=True)
+    grand_total: Mapped[Optional[Decimal]] = MappedColumn(db.Numeric(14, 2), nullable=True)
+    sac_code: Mapped[Optional[str]] = MappedColumn(db.String(8), nullable=True)
     created_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
     last_updated_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)
@@ -53,6 +69,8 @@ class DalaliEntry(db.Model):
 
     # Relationships
     supplier = relationship("Supplier", back_populates="dalali_entries")
+    billing_firm = relationship("Firm", foreign_keys=[billing_firm_id])
+    billing_firm_bank = relationship("FirmBank", foreign_keys=[billing_firm_bank_id])
     dalali_bills = relationship("DalaliBills", back_populates="dalali_entry")
     # This represents other dalali entries that were used by this dalali entry
     part_dalali = relationship("PartDalali", foreign_keys="PartDalali.use_dalali_id", back_populates="use_dalali")
@@ -85,6 +103,16 @@ class DalaliEntry(db.Model):
             return {"other_details": other_details_list}
         return {"other_details": []}
     
+    @property
+    def place_of_supply_name(self) -> Optional[str]:
+        from ..services.gst_invoice import STATE_NAMES
+        return STATE_NAMES.get(self.place_of_supply) if self.place_of_supply else None
+
+    @property
+    def grand_total_in_words(self) -> Optional[str]:
+        from ..services.gst_invoice import amount_in_words
+        return amount_in_words(self.grand_total) if self.grand_total is not None else None
+
     @hybrid_property
     def total_part_dalali_amount(self) -> Optional[float]:
         """
@@ -184,6 +212,14 @@ class DalaliBills(db.Model):
         if self.memo_entry:
             return self.memo_entry.less_gst
     
+    @property
+    def commission_rate(self) -> Optional[float]:
+        """Commission % of this memo (commission / amount-less-GST), for the invoice line."""
+        m = self.memo_entry
+        if m and m.less_gst and m.commision is not None:
+            return round(float(m.commision) * 100 / float(m.less_gst), 2)
+        return None
+
     @hybrid_property
     def register_date(self) -> Optional[datetime]:
         """

@@ -66,6 +66,7 @@ class DalaliBillSchema(BaseSchema):
     register_date: Optional[str] = None
     party_name: Optional[str] = None
     memo_amount: Optional[float] = None
+    commission_rate: Optional[float] = None
 
     @field_validator("register_date", mode="before")
     @classmethod
@@ -80,6 +81,33 @@ class LessDetailsSchema(BaseSchema):
 
 class SupplierScehma(BaseSchema):
     name: str
+    address: Optional[str] = None
+    city: Optional[str] = None
+    phone_number: Optional[str] = None
+    gstin: Optional[str] = None
+    pan: Optional[str] = None
+    email: Optional[str] = None
+    pin_code: Optional[str] = None
+
+class InvoiceFirmSchema(BaseSchema):
+    id: int
+    name: str
+    address: Optional[str] = None
+    phone_number: Optional[str] = None
+    email: Optional[str] = None
+    gstin: Optional[str] = None
+    pan: Optional[str] = None
+    sac_code: Optional[str] = None
+
+class InvoiceFirmBankSchema(BaseSchema):
+    id: int
+    name: str
+    address: Optional[str] = None
+    account_number: Optional[str] = None
+    account_type: Optional[str] = None
+    ifsc: Optional[str] = None
+    branch: Optional[str] = None
+
 class DalaliEntrySchema(BaseSchema):
     id: Optional[int] = None
     dalali_number: int
@@ -97,6 +125,27 @@ class DalaliEntrySchema(BaseSchema):
     status: str  # "Pending", "Approved", "Cancelled" (1, 2, 3)
     reference_page_number: Optional[int] = None
     tally_bill_no: Optional[str] = None
+
+    # Tax invoice (frozen on save)
+    billing_firm_id: Optional[int] = None
+    billing_firm_bank_id: Optional[int] = None
+    bill_date: Optional[str] = None
+    invoice_number: Optional[str] = None
+    gst_rate: Optional[float] = None
+    place_of_supply: Optional[str] = None
+    place_of_supply_name: Optional[str] = None
+    taxable_amount: Optional[float] = None
+    cgst_amount: Optional[float] = None
+    sgst_amount: Optional[float] = None
+    igst_amount: Optional[float] = None
+    round_off: Optional[float] = None
+    grand_total: Optional[float] = None
+    grand_total_in_words: Optional[str] = None
+    sac_code: Optional[str] = None
+    billing_firm: Optional[InvoiceFirmSchema] = None
+    billing_firm_bank: Optional[InvoiceFirmBankSchema] = None
+    # Set by the API: why it can't be approved yet (None = ready).
+    approval_problem: Optional[str] = None
     
     # Relationships
     dalali_bills: List[DalaliBillSchema] = []
@@ -125,13 +174,43 @@ class DalaliEntrySchema(BaseSchema):
                 raise ValueError("Invalid JSON string for 'notes'")
         return v
     
-    @field_validator("register_date", mode="before")
+    @field_validator("register_date", "bill_date", mode="before")
     @classmethod
     def parse_register_date(cls, v):
         # return in yyyy-mm-dd format
-        if isinstance(v, datetime):
+        if isinstance(v, (datetime, date)):
             return v.strftime("%Y-%m-%d")
         return v
+
+# Tax-invoice inputs shared by create and update. gst_rate: 18 / 5 / 0;
+# leaving it out keeps the old typed-in gst_addition behaviour.
+class DalaliInvoiceInput(BaseSchema):
+    billing_firm_id: Optional[int] = None
+    billing_firm_bank_id: Optional[int] = None
+    bill_date: Optional[date] = None
+    invoice_number: Optional[str] = None
+    gst_rate: Optional[float] = None
+    place_of_supply: Optional[str] = None
+    # Part entries only (they have no memos): the commission being billed.
+    taxable_amount: Optional[float] = None
+
+    @field_validator("bill_date", mode="before")
+    @classmethod
+    def parse_bill_date(cls, v):
+        if v in ("", None):
+            return None
+        if isinstance(v, str) and "T" in v:
+            return v.split("T")[0]
+        return v
+
+    @field_validator("invoice_number", "place_of_supply", mode="before")
+    @classmethod
+    def blank_to_none(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+            return v or None
+        return v
+
 # Optimized input schemas for related entities
 class DalaliBillCreate(BaseSchema):
     memo_id: int
@@ -186,7 +265,7 @@ class TdsDetailCreate(BaseSchema):
     amount: float
     notes: Optional[str] = None
 
-class DalaliEntryCreate(BaseSchema):
+class DalaliEntryCreate(DalaliInvoiceInput):
     dalali_number: int
     supplier_id: int
     register_date: datetime
@@ -195,7 +274,7 @@ class DalaliEntryCreate(BaseSchema):
     tds_deduction: float
     other_deduction: float
     settlement_deduction: float
-    gst_addition: float
+    gst_addition: Optional[float] = 0
     less_details: Optional[Dict[str, List[str]]] = None
     notes: Optional[List[str]] = None
     type: Union[str, int]  # "Full" or "Part" (1 or 2)
@@ -270,7 +349,7 @@ class TdsDetailUpdate(BaseSchema):
     notes: Optional[str] = None
     checked: Optional[bool] = False
 
-class DalaliEntryUpdate(BaseSchema):
+class DalaliEntryUpdate(DalaliInvoiceInput):
     dalali_number: Optional[int] = None
     supplier_id: Optional[int] = None
     register_date: Optional[datetime] = None
