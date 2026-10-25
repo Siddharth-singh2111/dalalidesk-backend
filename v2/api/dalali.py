@@ -18,9 +18,15 @@ import json
 
 dalali_bp = Blueprint("dalali", __name__, url_prefix="/api/dalali")
 
-# Same people the screens let approve (hooks/useAuth.ts canApproveDalali):
-# admins, anyone with Edit on dalali entries, and the named approvers.
-_LEGACY_APPROVERS = {"raghav", "hema", "vaibhav", "dhruv", "rajesh", "priyanka"}
+# Only these people approve dalali entries (owner's decision 2026-10-25:
+# Dhruv, Rajesh and Priyanka). Keep in step with the frontend list in
+# src/config/approvers.ts. Env DALALI_APPROVERS (comma-separated) overrides.
+import os
+_APPROVERS = {
+    u.strip().lower()
+    for u in (os.getenv("DALALI_APPROVERS") or "dhruv,rajesh,priyanka").split(",")
+    if u.strip()
+}
 
 
 def _can_approve() -> bool:
@@ -32,8 +38,15 @@ def _can_approve() -> bool:
         return False
     if not user or not getattr(user, "is_active", True):
         return False
-    return (user.role == "admin" or user.username in _LEGACY_APPROVERS
-            or user.has_permission("dalali_entry", "update"))
+    return str(user.username).lower() in _APPROVERS
+
+
+def _approval_guard(current_status, new_status):
+    """Approving, un-approving or editing an approved entry is for approvers only."""
+    touches_approval = (new_status == "Approved" and current_status != "Approved") or current_status == "Approved"
+    if touches_approval and not _can_approve():
+        return jsonify({"error": "Only Dhruv, Rajesh or Priyanka can approve or change an approved dalali entry"}), 403
+    return None
 
 
 def _entry_json(entry):
@@ -138,6 +151,9 @@ def create_dalali():
         request.json["created_by"] = current_user_id
         schema = DalaliEntryCreate.model_validate(request.json)
         data = schema.model_dump()
+        denied = _approval_guard(None, data.get("status"))
+        if denied:
+            return denied
         
         # Create entry using service
         success, result = DalaliService.create_dalali_entry(data)
@@ -177,6 +193,11 @@ def update_dalali(dalali_id):
 
         schema = DalaliEntryUpdate.model_validate(request.json)
         data = schema.model_dump()
+        existing = DalaliEntry.query.get(dalali_id)
+        if existing is not None:
+            denied = _approval_guard(existing.status, data.get("status") or existing.status)
+            if denied:
+                return denied
         
         # Update entry using service
         success, result = DalaliService.update_dalali_entry(dalali_id, data)
