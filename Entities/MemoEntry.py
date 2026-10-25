@@ -524,3 +524,156 @@ class MemoEntry(Entry):
             'new_amount': new_amount,
             'commision': int(result['commission']),
         }
+
+
+class MemoEditRefused(Exception):
+    """A memo edit was refused (or a preview finished); rolls the transaction back."""
+
+    def __init__(self, code: str, message: str, preview: Optional[Dict] = None):
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.preview = preview
+
+
+def _bill_state(bill_id: int) -> Dict:
+    bill = RegisterEntry.retrieve_by_id(bill_id)
+    return {'bill_number': bill.bill_number, 'status': bill.status, 'pending': bill.get_pending_amount()}
+
+
+def _normal_mode(mode: Optional[str]) -> str:
+    if mode in ('Settlement', 'Payment Settlement'):
+        return 'Payment Settlement'
+    if mode == 'Delivery':
+        return 'Dalali Settlement'
+    return mode or 'Full'
+
+
+def edit_memo(memo_id: int, data: Dict, dry_run: bool = False) -> Dict:
+    """
+    Edit a memo (ported from GHT's memo edit, built on DM's own create logic).
+
+    In ONE transaction: undo the memo's effects on its bills / part credits
+    (exactly what deleting it does), then apply the edited memo through the same
+    code that creates a memo, keeping the same memo id, number, supplier, party
+    and series. Anything refused rolls everything back. dry_run=True does the
+    same work and rolls back, returning a before/after view of each bill.
+
+    Not editable: a memo used by a dalali entry, or whose commission is marked
+    paid. The memo type cannot change. (DM: no edit window — owner, 2026-10-25.)
+    """
+    import copy
+    from API_Database.retrieve_memo_dalali import get_memo_dalali_payment, is_memo_used_by_dalali
+    from API_Database.update_memo_entry import rewrite_memo_entry_row
+
+    current = get_memo_entry(memo_id)
+    if is_memo_used_by_dalali(memo_id):
+        return {'status': 'error', 'code': 'DALALI_LINKED',
+                'message': 'This memo is in a dalali bill, so it can\'t be edited. Remove it from the dalali bill first.'}
+    paid = get_memo_dalali_payment(memo_id)
+    if paid and paid.get('is_paid'):
+        return {'status': 'error', 'code': 'MEMO_PAID',
+                'message': 'This memo\'s commission is marked paid, so it can\'t be edited.'}
+    old_mode = _normal_mode(current.get('memo_type') or current.get('mode'))
+    new_mode = _normal_mode(data.get('mode') or old_mode)
+    if new_mode != old_mode:
+        return {'status': 'error', 'code': 'MODE_FIXED',
+                'message': f'A {old_mode} memo stays a {old_mode} memo. Delete it and make a new one to change the type.'}
+
+    # The memo's identity never changes; the commission is always recomputed.
+    data = copy.deepcopy(data)
+    for key in ('supplier_id', 'party_id', 'memo_number', 'is_out_station'):
+        data[key] = current[key]
+    data['mode'] = old_mode
+    for key in ('less_gst', 'commision', 'id', 'memo_bills', 'less_gst_percentage'):
+        data.pop(key, None)
+    if data.get('gst_percentage') in (None, ''):
+        data['gst_percentage'] = current.get('less_gst_percentage')
+    if old_mode == 'Payment Settlement' and 'parent_memo_id' not in data:
+        data['parent_memo_id'] = current.get('parent_memo_id')
+
+    old = MemoEntry.from_dict(copy.deepcopy(current), parse_memo_bills=True)
+    supplier_id, party_id = old.supplier_id, old.party_id
+    old_bill_ids = {mb.bill_id for mb in old.memo_bills if mb.bill_id is not None and mb.type == 'F'}
+    before = {bid: _bill_state(bid) for bid in old_bill_ids}
+
+    try:
+        with transaction():
+            # 1. Undo (same steps as delete, minus removing the memo row)
+            for memo_bill in old.memo_bills:
+                try:
+                    memo_bill.delete(memo_id, supplier_id, party_id)
+                except DataError:
+                    raise MemoEditRefused('PART_CREDIT_USED', 'This part memo\'s credit has already been used by another memo, so it can\'t be edited.')
+            delete_memo_payments(memo_id)
+            for part_memo_id in old.part_payment:
+                update_part_payment(supplier_id, party_id, memo_id=part_memo_id, used=False)
+
+            # 2. Apply the edited memo with the create logic (bills read fresh, inside the transaction)
+            new = MemoEntry.from_dict(data)
+            # GR / deductions are spread over the bills in the order they were
+            # picked, so keep the memo's bills in their original order (new ones
+            # after them): an unchanged edit then rewrites the memo exactly as it was.
+            first_seen = {}
+            for memo_bill in sorted(old.memo_bills, key=lambda mb: getattr(mb, 'id', 0) or 0):
+                if memo_bill.type == 'F' and memo_bill.bill_id is not None:
+                    first_seen.setdefault(memo_bill.bill_id, len(first_seen))
+            new.selected_bills = [b for _, b in sorted(
+                enumerate(new.selected_bills),
+                key=lambda ib: (first_seen.get(ib[1].get_id(), len(first_seen)), ib[0]))]
+            if new.mode == 'Full':
+                if not new.selected_bills:
+                    raise MemoEditRefused('NO_BILLS', 'A Full memo needs at least one bill.')
+                for bill in new.selected_bills:
+                    if bill.supplier_id != supplier_id or bill.party_id != party_id:
+                        raise MemoEditRefused('WRONG_BILL', f'Bill {bill.bill_number} belongs to a different supplier/party.')
+                settled = [str(b.bill_number) for b in new.selected_bills if b.status == 'F']
+                if settled:
+                    raise MemoEditRefused('BILL_ALREADY_SETTLED',
+                                          f'Bill(s) {", ".join(settled)} are already settled by another memo.')
+            if new.amount < 0:
+                raise MemoEditRefused('NEGATIVE_AMOUNT', 'The memo amount can\'t be negative.')
+            paid_total = sum(int(p.get('amount') or 0) for p in new.payment)
+            if new.payment and paid_total != int(new.amount):
+                raise MemoEditRefused('PAYMENT_MISMATCH',
+                                      f'Payments add up to {paid_total} but the memo amount is {new.amount}.')
+
+            new.generate_memo_bills_and_update_status()
+            rewrite_memo_entry_row(memo_id, new)
+            for memo_bill in new.memo_bills:
+                insert_memo_entry.insert_memo_bill(memo_bill, memo_id)
+            for payment in new.payment:
+                payment['memo_id'] = memo_id
+                insert_memo_entry.insert_memo_payment(payment)
+            if new.mode == 'Full':
+                for part_memo_id in new.part_payment:
+                    update_part_payment(supplier_id, party_id, memo_id=part_memo_id, use_memo_id=memo_id)
+            elif new.mode == 'Part':
+                insert_memo_entry.insert_part_memo(new, memo_id)
+
+            new_bill_ids = {b.get_id() for b in new.selected_bills} if new.mode == 'Full' else set()
+            bills = []
+            for bid in sorted(old_bill_ids | new_bill_ids):
+                after = _bill_state(bid)
+                bills.append({'bill_id': bid, 'bill_number': after['bill_number'],
+                              'before': before.get(bid) or {'status': 'N', 'pending': None},
+                              'after': {'status': after['status'], 'pending': after['pending']},
+                              'change': 'added' if bid not in old_bill_ids else
+                                        ('removed' if bid not in new_bill_ids else 'kept')})
+            preview = {
+                'amount': int(new.amount),
+                'old_amount': int(current['amount'] or 0),
+                'commission': int(new.commision or 0),
+                'old_commission': int(current.get('commision') or 0),
+                'gst_percentage': getattr(new, 'less_gst_percentage', None),
+                'payments_total': paid_total,
+                'bills': bills,
+                'warnings': ([] if new.payment or new.amount == 0 else ['No payment entered for this memo.']),
+            }
+            if dry_run:
+                raise MemoEditRefused('PREVIEW', 'preview', preview)
+    except MemoEditRefused as e:
+        if e.code == 'PREVIEW':
+            return {'status': 'okay', 'preview': e.preview}
+        return {'status': 'error', 'code': e.code, 'message': e.message}
+    return {'status': 'okay', 'message': 'Memo updated', 'id': memo_id, 'preview': preview}
