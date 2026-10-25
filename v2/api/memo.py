@@ -100,3 +100,50 @@ def update_memo_commission(memo_id):
     # Return the updated memo
     schema = MemoEntrySchema.model_validate(entry)
     return jsonify(schema.model_dump())
+
+
+# ---------------------------------------------------------------------------
+# Memo edit (ported from GHT): same create-shaped payload as POST /add/memo_entry.
+# PUT saves; POST .../preview does the same work, rolls back and returns the
+# before/after of every bill. Anyone with memo Edit rights, any time (DM owner,
+# 2026-10-25); memos in a dalali bill or marked paid are refused.
+# ---------------------------------------------------------------------------
+def _memo_edit(memo_id: int, dry_run: bool):
+    from hca_backend.Entities.MemoEntry import edit_memo
+    if not MemoEntry.query.get(memo_id):
+        return jsonify({"status": "error", "message": "Memo not found"}), 404
+    try:
+        result = edit_memo(memo_id, request.json or {}, dry_run=dry_run)
+    except DataError as e:
+        info = e.dict() if isinstance(e.dict(), dict) else {"message": str(e)}
+        return jsonify({"status": "error", "message": info.get("message", str(e))}), 400
+    if result.get("status") != "okay":
+        return jsonify(result), 400
+    return jsonify(result), 200
+
+
+@memo_bp.route("/<int:memo_id>", methods=["PUT"])
+@jwt_required()
+@permission_required("memo_entry", "update")
+def edit_memo_route(memo_id):
+    return _memo_edit(memo_id, dry_run=False)
+
+
+@memo_bp.route("/<int:memo_id>/preview", methods=["POST"])
+@jwt_required()
+@permission_required("memo_entry", "update")
+def preview_memo_edit(memo_id):
+    return _memo_edit(memo_id, dry_run=True)
+
+
+@memo_bp.route("/<int:memo_id>/can_edit", methods=["GET"])
+@jwt_required()
+@permission_required("memo_entry", "read")
+def can_edit_memo(memo_id):
+    from hca_backend.API_Database.retrieve_memo_dalali import get_memo_dalali_payment, is_memo_used_by_dalali
+    if is_memo_used_by_dalali(memo_id):
+        return jsonify({"can_edit": False, "reason": "This memo is in a dalali bill. Remove it from the dalali bill first."})
+    paid = get_memo_dalali_payment(memo_id)
+    if paid and paid.get("is_paid"):
+        return jsonify({"can_edit": False, "reason": "This memo's commission is marked paid."})
+    return jsonify({"can_edit": True, "reason": None})

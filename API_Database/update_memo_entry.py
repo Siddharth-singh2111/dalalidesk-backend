@@ -121,3 +121,42 @@ def update_memo_entry_from_obj(data: Dict):
     db.commit()
     db.close()
     return {'status': 'okay'}
+
+
+def rewrite_memo_entry_row(memo_id: int, entry) -> Dict:
+    """
+    Memo edit: overwrite the memo_entry row with the edited memo's values. The
+    id, memo number, supplier, party and out-station series never change.
+    Runs through execute_query, so it joins an open transaction() and is audited.
+    """
+    from pypika import Query, Table
+    t = Table('memo_entry')
+
+    def dump(value):
+        return json.dumps(value) if value else None
+
+    query = (
+        Query.update(t)
+        .set(t.register_date, entry.register_date)
+        .set(t.amount, entry.amount)
+        .set(t.gr_amount, entry.gr_amount)
+        .set(t.deduction, entry.deduction)
+        .set(t.discount, entry.discount)
+        .set(t.other_deduction, entry.other_deduction)
+        .set(t.rate_difference, entry.rate_difference)
+        .set(t.additions, entry.additions)
+        .set(t.gr_amount_details, dump(entry.gr_amount_details))
+        .set(t.discount_details, dump(entry.discount_details))
+        .set(t.other_deduction_details, dump(entry.other_deduction_details))
+        .set(t.rate_difference_details, dump(entry.rate_difference_details))
+        .set(t.additions_details, dump(entry.additions_details))
+        .set(t.notes, dump(entry.notes))
+        .set(t.parent_dalali_id, entry.parent_dalali_id)
+        .set(t.parent_memo_id, entry.parent_memo_id)
+        .set(t.memo_type, entry.memo_type)
+        .set(t.less_gst_percentage, getattr(entry, 'less_gst_percentage', None))
+        .set(t.less_gst, entry.less_gst)
+        .set(t.commision, entry.commision)
+        .where(t.id == int(memo_id))
+    )
+    return execute_query(query.get_sql())
