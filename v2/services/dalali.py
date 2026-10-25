@@ -348,6 +348,7 @@ class DalaliService:
         block = gst_invoice.compute(taxable, rate, firm_state, entry.place_of_supply)
         for key in ("taxable_amount", "cgst_amount", "sgst_amount", "igst_amount", "round_off", "grand_total"):
             setattr(entry, key, block[key])
+        entry.sac_code = firm.sac_code or gst_invoice.SAC_CODE
 
         # The entry's net amount = what the screen sent, re-based on the
         # server's GST (tax + round off) so the two can never disagree.
@@ -449,6 +450,7 @@ class DalaliService:
                 out.update(
                     firm_state=gst_invoice.state_from_gstin(firm.gstin),
                     firm_gstin=firm.gstin,
+                    sac_code=firm.sac_code or gst_invoice.SAC_CODE,
                     next_invoice_number=DalaliService.next_invoice_number(firm_id, bill_date, exclude_id=exclude_id),
                     firm_banks=[{"id": b.id, "name": b.name, "account_number": b.account_number,
                                  "ifsc": b.ifsc, "branch": b.branch}

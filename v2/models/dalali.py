@@ -61,6 +61,7 @@ class DalaliEntry(db.Model):
     igst_amount: Mapped[Optional[Decimal]] = MappedColumn(db.Numeric(14, 2), nullable=True)
     round_off: Mapped[Optional[Decimal]] = MappedColumn(db.Numeric(8, 2), nullable=True)
     grand_total: Mapped[Optional[Decimal]] = MappedColumn(db.Numeric(14, 2), nullable=True)
+    sac_code: Mapped[Optional[str]] = MappedColumn(db.String(8), nullable=True)
     created_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
     last_updated_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)
@@ -111,11 +112,6 @@ class DalaliEntry(db.Model):
     def grand_total_in_words(self) -> Optional[str]:
         from ..services.gst_invoice import amount_in_words
         return amount_in_words(self.grand_total) if self.grand_total is not None else None
-
-    @property
-    def sac_code(self) -> Optional[str]:
-        from ..services.gst_invoice import SAC_CODE
-        return SAC_CODE if self.gst_rate is not None else None
 
     @hybrid_property
     def total_part_dalali_amount(self) -> Optional[float]:

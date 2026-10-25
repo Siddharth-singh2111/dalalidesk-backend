@@ -26,6 +26,8 @@ class Firm(db.Model):
     gstin: Mapped[Optional[str]] = MappedColumn(db.String(20), nullable=True)
     pan: Mapped[Optional[str]] = MappedColumn(db.String(10), nullable=True)
     email: Mapped[Optional[str]] = MappedColumn(db.String(120), nullable=True)
+    # SAC printed on this firm's dalali bills (NULL = 996111).
+    sac_code: Mapped[Optional[str]] = MappedColumn(db.String(8), nullable=True)
     created_at: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)
     created_by: Mapped[Optional[int]] = MappedColumn(db.Integer, db.ForeignKey("users.id"), nullable=True)
     last_updated: Mapped[datetime] = MappedColumn(db.TIMESTAMP(timezone=True), server_default=db.func.current_timestamp(), nullable=False)

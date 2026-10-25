@@ -97,6 +97,7 @@ class InvoiceFirmSchema(BaseSchema):
     email: Optional[str] = None
     gstin: Optional[str] = None
     pan: Optional[str] = None
+    sac_code: Optional[str] = None
 
 class InvoiceFirmBankSchema(BaseSchema):
     id: int

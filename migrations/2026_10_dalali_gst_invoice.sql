@@ -21,6 +21,8 @@ ALTER TABLE bank      ALTER COLUMN phone_number TYPE VARCHAR(255);
 ALTER TABLE party     ALTER COLUMN phone_number TYPE VARCHAR(255);
 
 ALTER TABLE firm ADD COLUMN IF NOT EXISTS email VARCHAR(120) DEFAULT NULL;
+-- SAC printed on the firm's dalali bills; NULL = 996111 (commission on wholesale trade).
+ALTER TABLE firm ADD COLUMN IF NOT EXISTS sac_code VARCHAR(8) DEFAULT NULL;
 
 ALTER TABLE firm_bank ADD COLUMN IF NOT EXISTS account_number VARCHAR(40)  DEFAULT NULL;
 ALTER TABLE firm_bank ADD COLUMN IF NOT EXISTS account_type   VARCHAR(30)  DEFAULT NULL;
@@ -40,6 +42,7 @@ ALTER TABLE dalali_entry ADD COLUMN IF NOT EXISTS sgst_amount          NUMERIC(1
 ALTER TABLE dalali_entry ADD COLUMN IF NOT EXISTS igst_amount          NUMERIC(14,2);
 ALTER TABLE dalali_entry ADD COLUMN IF NOT EXISTS round_off            NUMERIC(8,2);
 ALTER TABLE dalali_entry ADD COLUMN IF NOT EXISTS grand_total          NUMERIC(14,2);
+ALTER TABLE dalali_entry ADD COLUMN IF NOT EXISTS sac_code             VARCHAR(8);
 
 CREATE INDEX IF NOT EXISTS ix_dalali_entry_billing_firm ON dalali_entry (billing_firm_id, bill_date);
 

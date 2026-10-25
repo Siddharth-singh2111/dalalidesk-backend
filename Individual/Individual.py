@@ -63,6 +63,14 @@ class Individual:
                     raise DataError({'status': 'error', 'message': 'Invalid PAN (expected format ABCDE1234F)',
                                      'input_errors': {'pan': {'status': 'error', 'message': 'Invalid PAN (expected format ABCDE1234F)'}}})
                 self.pan = pan
+        # Firm only: SAC printed on its dalali bills (6 digits, e.g. 996111); blank = default.
+        self.sac_code = None
+        if table_name == 'firm' and kwargs.get('sac_code') is not None and str(kwargs.get('sac_code')).strip():
+            sac = re.sub(r'\s+', '', str(kwargs.get('sac_code')))
+            if not re.fullmatch(r'\d{4,8}', sac):
+                raise DataError({'status': 'error', 'message': 'SAC code must be digits, e.g. 996111',
+                                 'input_errors': {'sac_code': {'status': 'error', 'message': 'SAC code must be digits, e.g. 996111'}}})
+            self.sac_code = sac
         # Optional supplier contact fields (empty -> None).
         self.email = (str(kwargs.get('email')).strip() or None) if kwargs.get('email') is not None else None
         self.pin_code = (str(kwargs.get('pin_code')).strip() or None) if kwargs.get('pin_code') is not None else None
@@ -120,6 +128,7 @@ class Individual:
             update_fields.append(f"pan='{_strip_quotes(self.pan)}'" if self.pan else "pan=NULL")
         if self.table_name == 'firm':
             update_fields.append(f"email='{_strip_quotes(self.email)}'" if self.email else "email=NULL")
+            update_fields.append(f"sac_code='{self.sac_code}'" if self.sac_code else "sac_code=NULL")
         if self.table_name == 'supplier':
             update_fields.append(f"email='{_strip_quotes(self.email)}'" if self.email else "email=NULL")
             update_fields.append(f"pin_code='{_strip_quotes(self.pin_code)}'" if self.pin_code else "pin_code=NULL")
@@ -289,6 +298,10 @@ class Individual:
         if entity.table_name in ('supplier', 'party', 'firm') and getattr(entity, 'pan', None):
             columns.append('pan')
             values.append(f"'{remove_single_quotes(entity.pan)}'")
+
+        if entity.table_name == 'firm' and getattr(entity, 'sac_code', None):
+            columns.append('sac_code')
+            values.append(f"'{entity.sac_code}'")
 
         if entity.table_name in ('supplier', 'firm') and getattr(entity, 'email', None):
             columns.append('email')
