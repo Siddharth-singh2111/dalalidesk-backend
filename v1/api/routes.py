@@ -101,6 +101,40 @@ def get_user_id_from_token():
         # Return None if there's any error (e.g., no JWT token)
         return None
 
+@v1_bp.route('/support/widget-token', methods=['GET'])
+@jwt_required()
+def support_widget_token():
+    """
+    Mint a short-lived Work OS token for the signed-in person (support button).
+
+    Signed out / expired -> 401 (jwt_required). When the widget isn't configured
+    on this server (no WORKOS_WIDGET_KEY/SECRET) -> 404 so the button simply
+    doesn't appear. Only signs a real, app-verified email; every login here is a
+    password login (no API keys / service accounts to exclude).
+    """
+    import os
+    from .workos_support import workos_widget_token
+
+    if not os.environ.get('WORKOS_WIDGET_KEY') or not os.environ.get('WORKOS_WIDGET_SECRET'):
+        return jsonify({'error': 'support button off'}), 404
+
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'not signed in'}), 401
+
+    email = (getattr(user, 'email', '') or '').strip()
+    if not email:
+        return jsonify({'error': 'no verified email for this account'}), 403
+
+    token = workos_widget_token(email, getattr(user, 'full_name', '') or user.username)
+    if not token:
+        return jsonify({'error': 'support button off'}), 404
+
+    resp = jsonify({'token': token})
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
 @v1_bp.route('/login', methods=['POST'])
 def login():
     """
